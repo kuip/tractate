@@ -1,3 +1,7 @@
+import {
+  ContractSign,
+  ContractProof,
+} from '../../packages/contract-kit/src/mdx';
 import Menu, { type MenuItem } from '../components/Menu';
 import {
   render,
@@ -96,6 +100,8 @@ function contractMenuItems(children: ComponentChildren): MenuItem[] {
 }
 
 const components = {
+  ContractSign,
+  ContractProof,
   Tabs,
   Tab: ({ children }: { label: string; children: ComponentChildren }) => (
     <>{children}</>

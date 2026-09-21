@@ -165,3 +165,11 @@ Before selecting additional dependencies, check current official documentation f
 The user selected Kayros-native signing first. Implemented: encrypted local Ed25519 wallets and backups; SHA-256 document fingerprints; required-public-key lists; portable, bounded, versioned packages; local signature verification; all-parties registration gating; and the documented Kayros `/api/lightnet/hash` adapter. No other chain or WalletConnect dependency is used.
 
 Recommended next: agree the native wallet extension request protocol against SIGNING.md, provide HTTPS for LAN/mobile signing, provision the Kayros data type, add durable registration receipts and inclusion-proof verification, and support merging independently signed copies. A passkey-backed adapter remains an alternative after defining origin and recovery rules. Never equate an author-written `status` field with verified signatures or a confirmed chain record.
+
+## Security implementation update
+
+1. Exact npm and Node versions, lockfile integrity, commit-pinned Actions, and minimal build/deploy permissions are implemented.
+2. Native key handling now resides in extension/, a buildable Manifest V3 Chrome extension. The editor only requests reviewed signatures and public keys.
+3. The extension independently reconstructs approved contracts and reviews all fields/parties/template versions and verified previous-signature differences.
+4. packages/contract-kit provides public signing, merging, verification, and portable final proofs; restricted MDX imports expose ContractSign and ContractProof.
+5. Independent security review, authenticated Kayros inclusion proofs, and Chrome Web Store publication remain outstanding.

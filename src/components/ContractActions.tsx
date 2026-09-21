@@ -1,14 +1,12 @@
 import { kayrosEndpoint, registerContract } from '../lib/kayros';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { requestWallet } from '../../packages/contract-kit/src/bridge';
+import { createSigningProof } from '../../packages/contract-kit/src/proof';
 import {
-  createKeystore,
-  parseKeystore,
-  readWallets,
-  signWithKeystore,
-  storeWallet,
-  unlockKeystore,
-  type Keystore,
-} from '../lib/native-wallet';
+  reviewContract,
+  type Review,
+} from '../../packages/contract-kit/src/review';
+import SigningReview from './SigningReview';
 import QRCode from 'qrcode';
 import Menu from './Menu';
 import {
@@ -26,10 +24,12 @@ export default function ContractActions({
   envelope: draft,
   onChange,
   valid,
+  requestedAction = 0,
 }: {
   envelope: Envelope;
   onChange: (envelope: Envelope) => void;
   valid: boolean;
+  requestedAction?: number;
 }) {
   const [panel, setPanel] = useState<
     'share' | 'qr' | 'sign' | 'register' | null
@@ -74,10 +74,30 @@ export default function ContractActions({
     hash: string;
     timeuuid: string;
   } | null>(null);
-  const [wallets, setWallets] = useState<Keystore[]>([]);
   const [selectedWallet, setSelectedWallet] = useState('');
-  const [password, setPassword] = useState('');
-  const walletFile = useRef<HTMLInputElement>(null);
+  const [review, setReview] = useState<Review>();
+  useEffect(() => {
+    let disposed = false;
+    reviewContract(envelope)
+      .then((value) => {
+        if (!disposed) setReview(value);
+      })
+      .catch(() => {
+        if (!disposed) setReview(undefined);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [
+    envelope.source,
+    envelope.reference,
+    envelope.name,
+    envelope.id,
+    envelope.parties,
+  ]);
+  useEffect(() => {
+    if (requestedAction) void open('sign');
+  }, [requestedAction]);
   const modal = useRef<HTMLDialogElement>(null);
   const latest = useRef(envelope);
   latest.current = envelope;
@@ -86,16 +106,6 @@ export default function ContractActions({
   useEffect(() => {
     if (!panel) return;
     modal.current?.showModal();
-  }, [panel]);
-  useEffect(() => {
-    if (panel !== 'sign') return;
-    try {
-      const stored = readWallets();
-      setWallets(stored);
-      setSelectedWallet((selected) => selected || stored[0]?.publicKey || '');
-    } catch (err) {
-      setError((err as Error).message);
-    }
   }, [panel]);
   const open = async (next: 'share' | 'qr' | 'sign' | 'register') => {
     setError('');
@@ -157,10 +167,16 @@ export default function ContractActions({
         throw new Error(
           'Set the required parties and fix any source errors before signing.',
         );
-      const wallet = wallets.find((item) => item.publicKey === selectedWallet);
-      if (!wallet) throw new Error('Create or import a native wallet first.');
+      if (!selectedWallet) throw new Error('Connect the Chrome wallet first.');
       const hash = digest(snapshot);
-      const attestation = await signWithKeystore(snapshot, wallet, password);
+      const attestation = await requestWallet(
+        'sign',
+        await portableEnvelope(snapshot, true),
+      );
+      if (attestation.signer !== selectedWallet)
+        throw new Error(
+          'The extension signed with a different wallet. Connect that key before retrying.',
+        );
       if (digest(latest.current) !== hash)
         throw new Error(
           'The contract changed while signing. Review and sign again.',
@@ -170,32 +186,75 @@ export default function ContractActions({
         signatures: [
           ...snapshot.signatures.filter(
             (record) =>
-              !(record.digest === hash && record.signer === wallet.publicKey),
+              !(record.digest === hash && record.signer === selectedWallet),
           ),
           attestation,
         ],
       };
-      if (!verifiedSigners(signed).includes(wallet.publicKey))
+      if (!verifiedSigners(signed).includes(selectedWallet))
         throw new Error('The signature could not be verified.');
       onChange(signed);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
-      setPassword('');
     }
   };
-  const downloadWallet = () => {
-    const wallet = wallets.find((item) => item.publicKey === selectedWallet);
-    if (!wallet) return;
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(wallet, null, 2)], { type: 'application/json' }),
-    );
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `kayros-wallet-${wallet.publicKey.slice(8, 20)}.json`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const connect = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const key = await requestWallet('connect');
+      const normalized = parseParties(key);
+      if (normalized.length !== 1 || normalized[0] !== key)
+        throw new Error('Invalid wallet public key.');
+      setSelectedWallet(key);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const downloadProof = async () => {
+    try {
+      const proof = await createSigningProof(latest.current);
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(proof, null, 2)], {
+          type: 'application/json',
+        }),
+      );
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = envelope.name + '.proof.json';
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  const exportLegacy = () => {
+    try {
+      const wallets = JSON.parse(
+        localStorage.getItem('tractate:native-wallets:v1') || '[]',
+      );
+      if (!Array.isArray(wallets) || !wallets.length)
+        throw new Error('No legacy browser wallets were found.');
+      for (const wallet of wallets) {
+        const url = URL.createObjectURL(
+          new Blob([JSON.stringify(wallet)], { type: 'application/json' }),
+        );
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download =
+          'legacy-kayros-wallet-' +
+          String(wallet.publicKey).slice(8, 20) +
+          '.json';
+        anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
   return (
     <>
@@ -229,7 +288,6 @@ export default function ContractActions({
         onClose={() => {
           setPanel(null);
           setUserKey('');
-          setPassword('');
         }}
       >
         <button
@@ -360,22 +418,20 @@ export default function ContractActions({
               ))}
             </ul>
             <hr />
-            <h3>Native wallet</h3>
-            <label>
-              Wallet
-              <select
-                aria-label="Native wallet"
-                value={selectedWallet}
-                onChange={(event) =>
-                  setSelectedWallet(event.currentTarget.value)
-                }
-              >
-                <option value="">Choose a wallet</option>
-                {wallets.map((wallet) => (
-                  <option value={wallet.publicKey}>{wallet.publicKey}</option>
-                ))}
-              </select>
-            </label>
+            <h3>Chrome wallet</h3>
+            <a
+              href={`${import.meta.env.BASE_URL.replace(/\/?$/, '/')}downloads/tractate-wallet.zip`}
+              download
+            >
+              Download Chrome extension
+            </a>
+            <p>
+              Open the Tractate wallet extension to create or import a wallet.
+              Approval and passwords stay in its own window.
+            </p>
+            <button disabled={busy} onClick={() => void connect()}>
+              Connect Chrome wallet
+            </button>
             {selectedWallet && (
               <>
                 <label>
@@ -388,94 +444,36 @@ export default function ContractActions({
                 </label>
                 <button
                   disabled={busy}
-                  onClick={() => {
-                    try {
-                      setParties(
-                        parseParties(
-                          parties +
-                            '\n' +
-                            (parties.includes(selectedWallet)
-                              ? ''
-                              : selectedWallet),
-                        ).join('\n'),
-                      );
-                      setError('');
-                    } catch (err) {
-                      setError((err as Error).message);
-                    }
-                  }}
+                  onClick={() =>
+                    setParties(
+                      parseParties(
+                        parties +
+                          (parties.includes(selectedWallet)
+                            ? ''
+                            : '\n' + selectedWallet),
+                      ).join('\n'),
+                    )
+                  }
                 >
                   Add my key to parties
                 </button>
-                <button onClick={downloadWallet}>
-                  Export encrypted wallet backup
-                </button>
               </>
             )}
-            <label>
-              Wallet password
-              <input
-                type="password"
-                autoComplete="off"
-                aria-label="Wallet password"
-                value={password}
-                onInput={(event) => setPassword(event.currentTarget.value)}
-              />
-            </label>
-            <button
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                setError('');
-                try {
-                  const wallet = await createKeystore(password);
-                  setWallets(storeWallet(wallet));
-                  setSelectedWallet(wallet.publicKey);
-                } catch (err) {
-                  setError((err as Error).message);
-                } finally {
-                  setBusy(false);
-                  setPassword('');
-                }
-              }}
-            >
-              Create native wallet
-            </button>
-            <button disabled={busy} onClick={() => walletFile.current?.click()}>
-              Import encrypted wallet
-            </button>
-            <input
-              ref={walletFile}
-              type="file"
-              accept=".json,application/json"
-              hidden
-              onChange={async (event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = '';
-                if (!file) return;
-                setBusy(true);
-                setError('');
-                try {
-                  if (file.size > 4096)
-                    throw new Error('Wallet backup is too large.');
-                  const wallet = parseKeystore(JSON.parse(await file.text()));
-                  const secret = await unlockKeystore(wallet, password);
-                  secret.fill(0);
-                  setWallets(storeWallet(wallet));
-                  setSelectedWallet(wallet.publicKey);
-                } catch (err) {
-                  setError((err as Error).message);
-                } finally {
-                  setBusy(false);
-                  setPassword('');
-                }
-              }}
-            />
+            <details>
+              <summary>Move an existing browser wallet</summary>
+              <p>
+                Export its encrypted backup here, then import that file in the
+                extension. Browser signing has been removed. Existing backups
+                remain compatible.
+              </p>
+              <button onClick={exportLegacy}>
+                Export legacy encrypted wallets
+              </button>
+            </details>
+            {review && <SigningReview review={review} />}
             <p>
-              Use at least 12 characters for a new password. Export the
-              encrypted backup and keep its password separately: clearing
-              browser storage can remove this wallet. Passwords cannot be
-              recovered.
+              The extension shows changes against its own verified signing
+              history before approval.
             </p>
             <details>
               <summary>Review exact signed document</summary>
@@ -493,8 +491,18 @@ export default function ContractActions({
               }
               onClick={() => void sign()}
             >
-              Sign with native wallet
+              Review in Chrome wallet
             </button>
+            <button
+              disabled={!complete || busy}
+              onClick={() => void downloadProof()}
+            >
+              Download signing proof
+            </button>
+            <p>
+              Share the final proof with every party. It can be verified in the
+              extension or with the public library independently of this editor.
+            </p>
             <p>
               Changing the contract or required parties invalidates prior
               signatures for registration.
@@ -562,6 +570,9 @@ export default function ContractActions({
               </p>
             )}
             <button onClick={download}>Download signed package</button>
+            <button disabled={!complete} onClick={() => void downloadProof()}>
+              Download signing proof
+            </button>
           </>
         )}
         {error && <p role="alert">{error}</p>}

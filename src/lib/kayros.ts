@@ -1,12 +1,5 @@
-import { sourceHash } from './templates';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { bytesToHex } from '@noble/hashes/utils.js';
-import {
-  canRegister,
-  prepareEnvelope,
-  validAttestations,
-  type Envelope,
-} from './envelope';
+import { signedPackageHash } from '../../packages/contract-kit/src/proof';
+import { canRegister, prepareEnvelope, type Envelope } from './envelope';
 export const kayrosEndpoint = 'https://kayros.provable.dev/api/lightnet/hash';
 export function registrationPayload(envelope: Envelope, dataType: string) {
   if (!canRegister(envelope))
@@ -17,29 +10,7 @@ export function registrationPayload(envelope: Envelope, dataType: string) {
     throw new Error(
       'Enter a Kayros data type of 1–32 ASCII letters, digits, underscores, or hyphens.',
     );
-  const valid = validAttestations(envelope);
-  const signatures = envelope.parties.map((party) =>
-    valid.find(
-      (record) => record.signer.toLowerCase() === party.toLowerCase(),
-    )!,
-  );
-  const canonical = JSON.stringify({
-    version: 2,
-    id: envelope.id,
-    name: envelope.name,
-    reference: envelope.reference,
-    sourceHash: sourceHash(envelope.source),
-    parties: envelope.parties,
-    signatures: signatures.map(({ signer, digest, signature }) => ({
-      signer: signer.toLowerCase(),
-      digest,
-      signature,
-    })),
-  });
-  return {
-    data_type: dataType,
-    data_item: bytesToHex(sha256(new TextEncoder().encode(canonical))),
-  };
+  return { data_type: dataType, data_item: signedPackageHash(envelope) };
 }
 export async function registerContract(
   envelope: Envelope,

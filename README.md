@@ -121,10 +121,10 @@ Choose **View → No Menu** (or press the logo) to open the contract action menu
 
 - **Send → by Share:** generates a portable link with a pinned approved GitHub template reference, current field values, required public keys, and all existing signatures. Source code is excluded. Use the browser share sheet where available, copy the link, or download a `.tractate.json` package.
 - **Send → by QR:** encodes the same reference, values, parties, and signatures. If it exceeds QR capacity, use the share link or package; nothing is silently omitted.
-- **Sign:** create or import an encrypted native wallet, exchange `ed25519:` public keys, set the complete required-party list, review the document, and sign with the wallet password. Each party can share the partly signed package with the next signer. Export the encrypted wallet backup; it is separate from a contract package.
+- **Sign:** connect the Chrome wallet extension, create or import an encrypted wallet there, exchange `ed25519:` public keys, set the complete required-party list, review the document, and approve signing in the extension. Each party can share the partly signed package with the next signer. Export the encrypted wallet backup; it is separate from a contract package.
 - **Register:** enabled only when every required public key has a verified signature on the exact current source and party list. The dialog displays the endpoint and asks for the Kayros data type and API key. Submit records the hash of the signed package. Keep the package itself to prove what was registered.
 
-Wallet creation/unlocking uses WebCrypto and requires HTTPS or localhost. HTTP LAN access still supports editing, sharing, and signature verification. Native wallets use Ed25519; there is no WalletConnect project ID, Ethereum account, gas, or other-chain transaction.
+Wallet creation/unlocking uses WebCrypto inside the Chrome extension. Its editor bridge supports the deployed HTTPS site and localhost:4321. HTTP LAN access supports editing, sharing, and signature verification, but cannot request signatures. Native wallets use Ed25519; there is no WalletConnect project ID, Ethereum account, gas, or other-chain transaction.
 
 Share links hold compressed packages in the URL fragment. Anyone with the link can read the package; the receiving app imports it into a separate local draft. Values and signatures survive reload. No backend stores readable contracts automatically. Clipboard and native share APIs depend on browser support; download and manual copy remain available.
 
@@ -141,3 +141,17 @@ The repository-controlled `contracts/approved.json` lists approved references an
 3. Run `npm run verify:contracts`, then push the approval. Pages rebuilds with the updated list.
 
 Editing output fields preserves template approval. Source structure changes remain editable/exportable locally, but cannot be sent or signed until the new revision is published and approved. Sending, signing, and registering recheck GitHub availability. Receiving a new package needs GitHub access; existing local drafts remain editable offline. Version 1 packages containing source are no longer accepted, and old signatures must be collected again under the version 2 signing format. Encrypted wallet backups remain compatible.
+
+## Chrome wallet and public signing library
+
+Private-key operations now run in the separate **Tractate Chrome wallet extension**, not in the editor. Build with `npm run build:extension` and load `extension/dist` through Chrome's Load unpacked command. Detailed installation, encrypted-backup migration, allowed sites, and security boundaries are in [extension/README.md](extension/README.md). The deployable archive is [tractate-wallet.zip](https://kuip.github.io/tractate/downloads/tractate-wallet.zip). Creating or importing a wallet and approving signatures happens only in the extension window.
+
+The review displays all fields across all tabs, all required parties, the pinned template, and changes since this wallet's previous signature on the same instance. Each signature requires explicit review. The editor never requests a wallet password. Existing encrypted backups remain compatible; use **Sign → Move an existing browser wallet** to export a legacy backup, then import it in the extension.
+
+Once all parties sign, **Download signing proof** creates a reference-only `.proof.json` file for distribution to every party. It can be independently verified in the extension or with [@tractate/contract-kit](packages/contract-kit/README.md). The library supports merging signatures from identical versions. A signing proof proves all required keys signed; it does not claim authenticated Kayros inclusion. The extension and library use the same version-2 signed bytes as before.
+
+The public library is available as a [standalone ESM module](https://kuip.github.io/tractate/lib/contract-kit.js) and an [npm-compatible package](https://kuip.github.io/tractate/lib/tractate-contract-kit-0.2.0.tgz). No npm registry publication is required. The **Signing and proof demo** imports `ContractSign` and `ContractProof` from `@tractate/contract-kit/mdx`. The compiler permits this explicit capability import while continuing to reject arbitrary executable imports.
+
+## Pinned builds
+
+Direct npm versions match the lockfile exactly; transitive packages retain lockfile versions and integrity hashes. CI uses `npm ci --ignore-scripts`, an exact Node version from `.node-version`, commit-pinned Actions, no retained checkout credentials, and separate read-only build versus deployment permissions. `npm run check:pins` enforces the pins. Update dependencies intentionally and commit both manifests together. The hosted runner's OS packages and browser system dependencies are still managed by GitHub/Ubuntu; this is not a fully hermetic build or a security guarantee.

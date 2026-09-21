@@ -1,0 +1,30 @@
+{
+  "name": "@tractate/contract-kit",
+  "version": "0.2.0",
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "description": "Reference-only Kayros contract signing, verification, and MDX capabilities",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kuip/tractate.git",
+    "directory": "packages/contract-kit"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./mdx": {
+      "types": "./dist/mdx.d.ts",
+      "import": "./dist/mdx.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "preact": "10.29.8"
+  }
+}

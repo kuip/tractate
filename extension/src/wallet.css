@@ -1,0 +1,76 @@
+:root {
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+  color-scheme: light dark;
+  background: light-dark(#eee, #242424);
+  color: light-dark(#222, #eee);
+}
+body {
+  margin: 0;
+  min-width: 360px;
+}
+main {
+  padding: 20px;
+  max-width: 900px;
+  margin: auto;
+}
+h1 {
+  font-size: 23px;
+}
+h3 {
+  margin-top: 28px;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+button {
+  padding: 8px 12px;
+  margin: 6px 6px 6px 0;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+label {
+  display: block;
+  margin: 12px 0;
+}
+label > input:not([type='checkbox']),
+textarea,
+select {
+  display: block;
+  width: 100%;
+  padding: 8px;
+}
+textarea {
+  height: 90px;
+}
+dd {
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+dt {
+  font-weight: 600;
+}
+li,
+p,
+pre {
+  overflow-wrap: anywhere;
+}
+pre {
+  white-space: pre-wrap;
+  font: 13px/1.5 monospace;
+}
+section {
+  border-top: 1px solid #888;
+}
+p[role='alert'] {
+  color: light-dark(#a11, #ffaaaa);
+}

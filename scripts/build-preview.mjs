@@ -24,7 +24,7 @@ await writeFile(
   'public/preview.html',
   `<!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; font-src data:; connect-src 'none'; img-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; font-src data:; connect-src https://raw.githubusercontent.com; img-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Contract output</title><style>${styles.outputFiles[0].text}</style></head>
 <body><main id="document" aria-label="Rendered contract"></main><script>${runtime.outputFiles[0].text}</script></body></html>`,
 );

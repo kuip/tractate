@@ -26,13 +26,13 @@ Do not trim, normalize newlines, or otherwise rewrite signed source. The instanc
 
 Source, filename, and party-list changes invalidate old signatures for registration. Old attestations can remain in the portable package; they are never counted for a changed version. A reversion to the exact signed bytes restores their validity. Signatures are collected sequentially by sending the current package to each signer. Automatic merging of separately signed branches is not implemented.
 
-## Native local wallet
+## Native Chrome extension wallet
 
 A random 32-byte Ed25519 seed is encrypted with AES-256-GCM. A 256-bit encryption key is derived from the user password using PBKDF2-HMAC-SHA256 with 600,000 iterations and a random 16-byte salt. AES-GCM uses a random 12-byte IV and authenticates the public-key identifier as additional data. The encrypted keystore includes version, algorithms, iterations, publicKey, salt, iv, and ciphertext.
 
-Only encrypted keystores persist in browser storage or wallet backups. Signing decrypts a seed temporarily, verifies its public-key binding, signs, and clears the byte buffer; passwords are cleared after signing and when closing the dialog. JavaScript cannot promise complete memory zeroization of engine copies. Use HTTPS or localhost. Backups and passwords are required for recovery; clearing browser storage without a backup can lose access to the signing key. The private seed and password are never part of a contract package, QR, share link, or Kayros request.
+Only encrypted keystores persist in extension-local wallet storage or wallet backups. Previous signed contract snapshots are stored separately in trusted extension storage for review comparisons. Signing decrypts a seed temporarily, verifies its public-key binding, signs, and clears the byte buffer; passwords are cleared after signing and when closing the dialog. JavaScript cannot promise complete memory zeroization of engine copies. Use HTTPS or localhost. Backups and passwords are required for recovery; clearing browser storage without a backup can lose access to the signing key. The private seed and password are never part of a contract package, QR, share link, or Kayros request.
 
-A future extension should keep the seed outside the page and expose account selection plus a reviewed sign-contract request carrying these exact public bytes. Provider discovery, request names, permissions, error codes, and external-wallet authentication still need an agreed protocol; no existing native extension is assumed.
+The Manifest V3 extension in extension/ implements public-key connection and reviewed contract signing. The editor bridge sends only a version-2 portable package. Chrome authenticates the requesting site/document; the extension independently hydrates the approved template before asking for explicit review and password entry. It returns only a public key or an attestation. See extension/README.md for origin restrictions, request expiry, storage isolation, and migration.
 
 ## Portable package
 
@@ -58,3 +58,7 @@ X-User-Key: <runtime API key, if required>
 Submission is explicit and checks signature completeness again immediately before sending. No private contract text, password, or wallet seed is submitted. The API key goes only in the request header and is cleared on dialog close. A successful response shows the returned `hash` and `timeuuid`; this means the API accepted the record, not that a Merkle inclusion proof or execution outcome has been verified. Persisted receipts and proof verification are follow-up work.
 
 Tests use deterministic test keys and a mocked registration endpoint. No live contract record has been submitted by the implementation work.
+
+## Public library and signing proofs
+
+The implementation is shared through packages/contract-kit. A final proof contains `{format: "tractate-signing-proof-v1", contract, packageHash}`. `verifySigningProof` reconstructs the approved contract, verifies every required signature, and recomputes the canonical registration commitment; it does not trust a status flag. `mergeSignedPackages` rejects different signed digests and retains one valid signature per key. Every party should receive the final proof. Kayros inclusion and authenticated checkpoint verification remain separate from this signing proof.

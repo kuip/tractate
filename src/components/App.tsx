@@ -3,6 +3,7 @@ import {
   fromShareUrl,
   parseEnvelope,
   hydrateEnvelope,
+  portableEnvelope,
   type Envelope,
 } from '../lib/envelope';
 import { bytesToHex, randomBytes } from '@noble/hashes/utils.js';
@@ -55,6 +56,33 @@ export default function App() {
     Pick<Envelope, 'id' | 'parties' | 'signatures' | 'reference'>
   >(() => ({ id: bytesToHex(randomBytes(16)), parties: [], signatures: [] }));
   const envelope: Envelope = { version: 2, ...contract, source, name };
+  const [requestedAction, setRequestedAction] = useState(0);
+  const sendProof = async () => {
+    const snapshot = current.current;
+    try {
+      const proof = await portableEnvelope({
+        version: 2,
+        ...snapshot.contract,
+        source: snapshot.source,
+        name: snapshot.name,
+      });
+      if (
+        current.current.source !== snapshot.source ||
+        current.current.name !== snapshot.name ||
+        current.current.contract !== snapshot.contract
+      )
+        return;
+      frame.current?.contentWindow?.postMessage(
+        { type: 'tractate:proof', contract: proof },
+        '*',
+      );
+    } catch {
+      frame.current?.contentWindow?.postMessage(
+        { type: 'tractate:proof' },
+        '*',
+      );
+    }
+  };
   const [saveStatus, setSaveStatus] = useState('Opening workspace…');
   const [compileStatus, setCompileStatus] = useState('Preparing output');
   const [error, setError] = useState('');
@@ -65,6 +93,9 @@ export default function App() {
   const [updateReady, setUpdateReady] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(`${base}preview.html`);
   const [rendered, setRendered] = useState(false);
+  useEffect(() => {
+    if (rendered) void sendProof();
+  }, [source, contract, rendered]);
   const frame = useRef<HTMLIFrameElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const modal = useRef<HTMLDialogElement>(null);
@@ -225,6 +256,18 @@ export default function App() {
     };
     const messages = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow) return;
+      if (
+        event.data?.type === 'tractate:action' &&
+        event.data.action === 'sign'
+      ) {
+        setView('no-menu');
+        setRequestedAction((value) => value + 1);
+        return;
+      }
+      if (event.data?.type === 'tractate:proof-request') {
+        void sendProof();
+        return;
+      }
       if (event.data?.type === 'tractate:field') {
         const map = fieldMap.current;
         if (
@@ -465,6 +508,7 @@ export default function App() {
         {view === 'no-menu' && ready && (
           <ContractActions
             envelope={envelope}
+            requestedAction={requestedAction}
             valid={
               !error &&
               compileStatus === 'output OK' &&

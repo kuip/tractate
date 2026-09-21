@@ -9,3 +9,8 @@ public/preview.html
 
 .env
 .env.local
+extension/dist/
+packages/contract-kit/dist/
+packages/contract-kit/LICENSE
+public/lib/
+public/downloads/

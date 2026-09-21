@@ -55,3 +55,20 @@ test('output edits patch only the intended field and retain valid MDX', async ()
   assert.match(second.source, /label="Second" value="Bob"/);
   assert.equal((await compileDocument(second.source)).fields.length, 2);
 });
+
+test('MDX imports expose only declared wallet/proof components, without arbitrary module execution', async () => {
+  const imported =
+    'import { ContractSign, ContractProof } from \'@tractate/contract-kit/mdx\';\n\n<ContractSign label="Sign" />\n<ContractProof />';
+  const result = await compileSource(imported);
+  assert.match(result, /ContractSign/);
+  assert.doesNotMatch(result, /await import|import\(/);
+  for (const source of [
+    "import { signEnvelope } from '@tractate/contract-kit/mdx';\n\n# Bad",
+    "import { ContractSign as Sign } from '@tractate/contract-kit/mdx';\n\n<Sign />",
+    "import * as kit from '@tractate/contract-kit/mdx';\n\n# Bad",
+    "import { ContractSign } from '@tractate/contract-kit/mdx'; export const x = alert(1);\n\n<ContractSign />",
+    '<ContractSign />',
+    '<Field label="A" value="one" value="two" />',
+  ])
+    await assert.rejects(compileSource(source));
+});

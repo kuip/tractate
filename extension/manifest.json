@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Tractate Kayros Wallet",
+  "version": "0.2.0",
+  "description": "Review and sign approved Kayros contracts with an isolated native Ed25519 wallet.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage"],
+  "host_permissions": ["https://raw.githubusercontent.com/kuip/tractate/*"],
+  "background": {"service_worker": "background.js", "type": "module"},
+  "action": {"default_title": "Tractate wallet", "default_popup": "wallet.html"},
+  "content_scripts": [{"matches": ["https://kuip.github.io/tractate/*", "http://localhost/*", "http://127.0.0.1/*"], "js": ["content.js"], "all_frames": false, "run_at": "document_start"}],
+  "content_security_policy": {"extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; connect-src https://raw.githubusercontent.com; base-uri 'none'; form-action 'none'"}
+}

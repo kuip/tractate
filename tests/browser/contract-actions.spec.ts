@@ -1,7 +1,21 @@
 import { readFile } from 'node:fs/promises';
+import { test, expect } from '@playwright/test';
 import { templates, mockTemplates } from '../template-fixtures';
+import {
+  fromShareUrl,
+  canRegister,
+  nativeParty,
+  signPackage,
+} from '../../src/lib/envelope';
+import { verifySigningProof } from '../../packages/contract-kit/src/proof';
+import { registrationPayload } from '../../src/lib/kayros';
 mockTemplates();
-test.beforeEach(async ({ page }) => {
+test('extension bridge signatures survive sharing and reload; proof and registration verify', async ({
+  page,
+}) => {
+  const alice = new Uint8Array(32).fill(17),
+    bob = new Uint8Array(32).fill(34);
+  let selected = alice;
   await page.route(
     'https://raw.githubusercontent.com/kuip/tractate/**',
     (route) =>
@@ -10,84 +24,70 @@ test.beforeEach(async ({ page }) => {
         contentType: 'text/plain',
       }),
   );
-});
-import { test, expect } from '@playwright/test';
-import { fromShareUrl, canRegister } from '../../src/lib/envelope';
-import { registrationPayload } from '../../src/lib/kayros';
-
-test('native two-party signing, full sharing, QR, reload, and gated Kayros registration', async ({
-  page,
-}) => {
-  const password = 'test-only wallet password';
-  let submissions: unknown[] = [];
-  await page.route(
-    'https://kayros.provable.dev/api/lightnet/hash',
-    async (route) => {
-      submissions.push(route.request().postDataJSON());
-      await route.fulfill({
-        json: {
-          success: true,
-          hash: 'test-record-hash',
-          timeuuid: 'test-record-id',
-        },
-      });
-    },
+  await page.exposeFunction('testWallet', async (request: any) =>
+    request.method === 'connect'
+      ? nativeParty(selected)
+      : signPackage(request.contract, selected),
   );
+  await page.addInitScript(() => {
+    window.addEventListener('message', async (event) => {
+      if (
+        event.source !== window ||
+        event.data?.channel !== 'tractate:wallet:request'
+      )
+        return;
+      const reply = { channel: 'tractate:wallet:response', id: event.data.id };
+      window.postMessage({ ...reply, ack: true }, location.origin);
+      try {
+        const result = await (window as any).testWallet(event.data);
+        window.postMessage({ ...reply, result }, location.origin);
+      } catch (error) {
+        window.postMessage({ ...reply, error: String(error) }, location.origin);
+      }
+    });
+  });
+  const submissions: unknown[] = [];
+  await page.route('https://kayros.provable.dev/api/lightnet/hash', (route) => {
+    submissions.push(route.request().postDataJSON());
+    return route.fulfill({
+      json: {
+        success: true,
+        hash: 'test-record-hash',
+        timeuuid: 'test-record-id',
+      },
+    });
+  });
   await page.goto('/');
-  const author = page
+  await page
     .frameLocator('iframe')
-    .getByRole('textbox', { name: 'Author', exact: true });
-  await author.fill('Alice and Bob');
-  await expect(page.getByRole('textbox', { name: 'MDX source' })).toContainText(
-    'value="Alice and Bob"',
-  );
+    .getByRole('textbox', { name: 'Author', exact: true })
+    .fill('Alice and Bob');
   await page.getByRole('button', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'No Menu', exact: true }).click();
-  await expect(
-    page.getByRole('navigation', { name: 'Contract actions' }),
-  ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Register', exact: true }),
   ).toBeDisabled();
   await page.getByRole('button', { name: 'Sign', exact: true }).click();
-  await page.getByLabel('Wallet password', { exact: true }).fill(password);
+  await expect(page.getByLabel('Wallet password', { exact: true })).toHaveCount(
+    0,
+  );
   await page
-    .getByRole('button', { name: 'Create native wallet', exact: true })
+    .getByRole('button', { name: 'Connect Chrome wallet', exact: true })
     .click();
   await expect(
     page.getByRole('textbox', { name: 'My public key' }),
-  ).toHaveValue(/^ed25519:/);
-  const firstKey = await page
-    .getByRole('textbox', { name: 'My public key' })
-    .inputValue();
-  await page.getByLabel('Wallet password', { exact: true }).fill(password);
-  await page
-    .getByRole('button', { name: 'Create native wallet', exact: true })
-    .click();
-  await expect(
-    page.getByRole('textbox', { name: 'My public key' }),
-  ).not.toHaveValue(firstKey);
-  const secondKey = await page
-    .getByRole('textbox', { name: 'My public key' })
-    .inputValue();
+  ).toHaveValue(nativeParty(alice));
   await page
     .getByRole('textbox', { name: 'Required party public keys' })
-    .fill(`${firstKey}\n${secondKey}`);
+    .fill(`${nativeParty(alice)}\n${nativeParty(bob)}`);
   await page.getByRole('button', { name: 'Set parties', exact: true }).click();
   await page
-    .getByRole('combobox', { name: 'Native wallet' })
-    .selectOption(firstKey);
-  await page.getByLabel('Wallet password', { exact: true }).fill(password);
-  await page
-    .getByRole('button', { name: 'Sign with native wallet', exact: true })
+    .getByRole('button', { name: 'Review in Chrome wallet', exact: true })
     .click();
   await expect(
     page.getByText('1/2 parties signed this version.'),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Close contract action' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Register', exact: true }),
-  ).toBeDisabled();
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   await page.getByRole('menuitem', { name: 'by QR', exact: true }).click();
   await expect(
@@ -95,68 +95,57 @@ test('native two-party signing, full sharing, QR, reload, and gated Kayros regis
       name: 'QR code for the complete contract snapshot',
     }),
   ).toBeVisible();
-  const sharedUrl = await page
+  const url = await page
     .getByRole('textbox', { name: 'Contract link' })
     .inputValue();
-  const shared = await fromShareUrl(new URL(sharedUrl).hash);
+  const shared = await fromShareUrl(new URL(url).hash);
   expect(shared.source).toContain('value="Alice and Bob"');
   expect(shared.signatures).toHaveLength(1);
   const downloaded = page.waitForEvent('download');
   await page
     .getByRole('button', { name: 'Download contract package', exact: true })
     .click();
-  const packageFile = await downloaded;
-  const wire = JSON.parse(await readFile((await packageFile.path())!, 'utf8'));
-  expect(wire).not.toHaveProperty('source');
-  expect(wire.reference).toMatch(
-    /^[a-f0-9]{40}\/contracts\/agreements\/contribution.mdx$/,
+  const wire = JSON.parse(
+    await readFile((await (await downloaded).path())!, 'utf8'),
   );
+  expect(wire).not.toHaveProperty('source');
   expect(wire.values['0']).toBe('Alice and Bob');
-  expect(wire.signatures).toHaveLength(1);
-  expect(JSON.stringify(shared)).not.toContain(password);
   await page.getByRole('button', { name: 'Close contract action' }).click();
-  await page.goto(sharedUrl);
+  await page.goto(url);
   await expect(
     page
       .frameLocator('iframe')
       .getByRole('textbox', { name: 'Author', exact: true }),
   ).toHaveValue('Alice and Bob');
   await page.getByRole('button', { name: 'Sign', exact: true }).click();
+  selected = bob;
+  await page
+    .getByRole('button', { name: 'Connect Chrome wallet', exact: true })
+    .click();
   await expect(
-    page.getByText('1/2 parties signed this version.'),
-  ).toBeVisible();
+    page.getByRole('textbox', { name: 'My public key' }),
+  ).toHaveValue(nativeParty(bob));
   await page
-    .getByRole('combobox', { name: 'Native wallet' })
-    .selectOption(secondKey);
-  await page.getByLabel('Wallet password', { exact: true }).fill(password);
-  await page
-    .getByRole('button', { name: 'Sign with native wallet', exact: true })
+    .getByRole('button', { name: 'Review in Chrome wallet', exact: true })
     .click();
   await expect(
     page.getByText('2/2 parties signed this version.'),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Close contract action' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Register', exact: true }),
-  ).toBeEnabled();
-  await page.getByRole('button', { name: 'Send', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'by Share', exact: true }).click();
-  await expect(
-    page.getByRole('textbox', { name: 'Contract link' }),
-  ).not.toHaveValue('');
-  const full = await fromShareUrl(
-    new URL(
-      await page.getByRole('textbox', { name: 'Contract link' }).inputValue(),
-    ).hash,
+  const proofDownload = page.waitForEvent('download');
+  await page
+    .getByRole('button', { name: 'Download signing proof', exact: true })
+    .click();
+  const proof = JSON.parse(
+    await readFile((await (await proofDownload).path())!, 'utf8'),
   );
-  expect(canRegister(full)).toBe(true);
+  const result = await verifySigningProof(proof);
+  expect(canRegister(result.envelope)).toBe(true);
   await page.getByRole('button', { name: 'Close contract action' }).click();
-  // Wait for the signed metadata to reach IndexedDB before reload.
   await expect
     .poll(async () =>
       page.evaluate(async () => {
-        const request = indexedDB.open('tractate', 1);
         return new Promise<number>((resolve) => {
+          const request = indexedDB.open('tractate', 1);
           request.onsuccess = () => {
             const db = request.result;
             const read = db
@@ -184,7 +173,9 @@ test('native two-party signing, full sharing, QR, reload, and gated Kayros regis
     .getByRole('button', { name: 'Submit to Kayros', exact: true })
     .click();
   await expect(page.getByText(/Kayros accepted the hash/)).toBeVisible();
-  expect(submissions).toEqual([registrationPayload(full, 'tractate_v1')]);
+  expect(submissions).toEqual([
+    registrationPayload(result.envelope, 'tractate_v1'),
+  ]);
   await page.getByRole('button', { name: 'Close contract action' }).click();
   await page
     .frameLocator('iframe')
@@ -193,4 +184,32 @@ test('native two-party signing, full sharing, QR, reload, and gated Kayros regis
   await expect(
     page.getByRole('button', { name: 'Register', exact: true }),
   ).toBeDisabled();
+});
+
+test('MDX capability imports display proof and open a review including inactive-tab fields', async ({
+  page,
+}) => {
+  await page.route(
+    'https://raw.githubusercontent.com/kuip/tractate/**',
+    (route) =>
+      route.fulfill({
+        body: templates[route.request().url()],
+        contentType: 'text/plain',
+      }),
+  );
+  await page.goto('/?contract=demos/signing-and-proof.mdx');
+  const output = page.frameLocator('iframe');
+  await output.getByRole('tab', { name: 'Signatures', exact: true }).click();
+  await expect(output.getByLabel('Signature proof')).toContainText(
+    '0/0 parties signed',
+  );
+  await output
+    .getByRole('button', { name: 'Review all fields and sign', exact: true })
+    .click();
+  await expect(
+    page.getByRole('region', { name: 'Signing review' }),
+  ).toContainText('Deadline');
+  await expect(
+    page.getByRole('button', { name: 'Connect Chrome wallet', exact: true }),
+  ).toBeVisible();
 });

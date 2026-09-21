@@ -4,6 +4,16 @@
     "jsx": "react-jsx",
     "jsxImportSource": "preact"
   },
-  "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist", "node_modules", "src/generated"]
+  "include": [
+    ".astro/types.d.ts",
+    "**/*"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "src/generated",
+    "extension/dist",
+    "packages/contract-kit/dist",
+    "public/lib"
+  ]
 }
