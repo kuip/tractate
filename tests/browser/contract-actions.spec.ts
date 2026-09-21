@@ -260,3 +260,12 @@ test('missing Chrome extension gives an actionable error', async ({ page }) => {
     page.getByRole('button', { name: 'Connect Chrome wallet', exact: true }),
   ).toBeEnabled();
 });
+
+test('Sign is directly available from the editor menu', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Sign', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Connect Chrome wallet', exact: true }),
+  ).toBeVisible();
+});

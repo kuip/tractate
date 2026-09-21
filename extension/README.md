@@ -15,7 +15,7 @@ npm run build:extension
 2. Enable Developer mode, select **Load unpacked**, and choose this repository's `extension/dist` directory.
 3. Open the extension to create a wallet or import an encrypted backup. Export a backup and retain the password separately.
 4. Reload https://kuip.github.io/tractate/ (or http://localhost:4321/).
-5. In the editor, choose **Sign → Connect Chrome wallet**, approve sharing a public key, set all required parties, and choose **Review in Chrome wallet**.
+5. In the editor, choose **Sign → Connect Chrome wallet**, then **Share public key** in the extension. Back in the editor, choose **Add my key to parties**, add the other required parties, and choose **Review in Chrome wallet**. Enter the wallet password in that approval window, check the review box, and press **Sign contract**.
 
 `public/downloads/tractate-wallet.zip` contains the built extension and can be uploaded to the Chrome Web Store dashboard. Store publication/review and installation in a user's browser are separate steps; no store account or signing key is included. Unzip it before using Load unpacked. The built directory is regenerated and ignored by Git.
 
@@ -59,3 +59,10 @@ The extension computes the hash itself after independently loading the approved 
 A certificate fingerprint identifies the exact certificate. Renewal gives a new party identifier; agree on it before signing. Certificates in shared proofs can contain names and personal identifiers. No certificate or identity data is submitted to Kayros—only the final package hash.
 
 **Trust limit:** these proofs establish control of the selected certificate key, not a government-verified identity or qualified electronic signature. Issuer chains, revocation and trusted timestamps are not validated. Subjects are labeled unverified. Signing rejects certificates outside their validity period and authentication-only certificates. Historical proof verification does not claim a trusted signing time or retroactively invalidate key signatures after expiry.
+
+
+## Finding the signing screen (extension 0.3.1)
+
+The normal extension popup has **Sign a contract** at the top. It opens signing for the active supported editor tab; otherwise it opens the editor to choose a contract. If a wallet request is already pending, it brings its approval window forward. This uses Chrome's `activeTab` permission granted when opening the extension, rather than access to every browser tab. Reload the unpacked extension after rebuilding, then reload the editor tab so it gets the updated content script.
+
+The editor's normal menu also has **Sign**, so toggling the logo or changing views is unnecessary. The approval window shows the complete contract review, followed by the password, review checkbox and **Sign contract** button. Creating/importing wallets and eID setup are separate, collapsible controls. Opening the signing screen never grants a signature automatically.

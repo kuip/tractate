@@ -151,10 +151,10 @@ test('extension card flow reviews the contract, uses the native protocol, and do
       popup.getByRole('region', { name: 'Signing review' }),
     ).toContainText('Deadline');
     await expect(
-      popup.getByRole('button', { name: 'Approve signature' }),
+      popup.getByRole('button', { name: 'Sign contract' }),
     ).toBeDisabled();
     await popup.getByRole('checkbox').check();
-    await popup.getByRole('button', { name: 'Approve signature' }).click();
+    await popup.getByRole('button', { name: 'Sign contract' }).click();
     await expect(
       page.getByText('1/1 parties signed this version.'),
     ).toBeVisible();

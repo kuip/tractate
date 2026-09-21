@@ -25,6 +25,16 @@ type Dialog = {
   button?: string;
 };
 export default function App() {
+  const startSigning =
+    new URLSearchParams(location.search).get('action') === 'sign';
+  const openSigning = () => {
+    setView('no-menu');
+    setRequestedAction((value) => value + 1);
+  };
+  useEffect(() => {
+    window.addEventListener('tractate:open-sign', openSigning);
+    return () => window.removeEventListener('tractate:open-sign', openSigning);
+  }, []);
   const [linkedContract] = useState(() =>
     contracts.find(
       (contract) =>
@@ -45,7 +55,7 @@ export default function App() {
     linkedContract?.name || defaultContract?.name || 'untitled-contract',
   );
   const [view, setView] = useState<View>(
-    new URLSearchParams(location.search).has('draft')
+    startSigning || new URLSearchParams(location.search).has('draft')
       ? 'no-menu'
       : linkedContract
         ? 'output'
@@ -56,7 +66,7 @@ export default function App() {
     Pick<Envelope, 'id' | 'parties' | 'signatures' | 'reference'>
   >(() => ({ id: bytesToHex(randomBytes(16)), parties: [], signatures: [] }));
   const envelope: Envelope = { version: 2, ...contract, source, name };
-  const [requestedAction, setRequestedAction] = useState(0);
+  const [requestedAction, setRequestedAction] = useState(startSigning ? 1 : 0);
   const sendProof = async () => {
     const snapshot = current.current;
     try {
@@ -535,6 +545,9 @@ export default function App() {
           />
         )}
         <nav aria-label="Application menu" hidden={view === 'no-menu'}>
+          <button class="shared-menu-trigger" onClick={openSigning}>
+            Sign
+          </button>
           <Menu
             label="File"
             items={[

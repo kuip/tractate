@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Tractate Kayros Wallet",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Review and sign Kayros contracts with an isolated wallet or Web eID smart card.",
   "minimum_chrome_version": "120",
-  "permissions": ["storage", "nativeMessaging"],
+  "permissions": ["storage", "nativeMessaging", "activeTab"],
   "host_permissions": ["https://raw.githubusercontent.com/kuip/tractate/*"],
   "background": {
     "service_worker": "background.js",

@@ -42,6 +42,30 @@ test('real Chrome extension isolates keys, requires approval, reviews changes, a
     const publicKey = await manager
       .getByRole('textbox', { name: 'Public key', exact: true })
       .inputValue();
+    await context.route('https://kuip.github.io/**', async (route) => {
+      const url = new URL(route.request().url());
+      const response = await context.request.get(
+        'http://127.0.0.1:4321' +
+          (url.pathname.replace(/^\/tractate/, '') || '/') +
+          url.search,
+      );
+      await route.fulfill({ response });
+    });
+    const starting = context.waitForEvent('page');
+    await manager
+      .getByRole('button', { name: 'Sign a contract', exact: true })
+      .click();
+    const entry = await starting;
+    await expect(entry).toHaveURL(
+      'https://kuip.github.io/tractate/?action=sign',
+    );
+    // Chrome-created initial navigations bypass Playwright routing. Reload into the local fixture.
+    await entry.reload();
+    await expect(entry.getByRole('dialog')).toBeVisible();
+    await expect(
+      entry.getByRole('button', { name: 'Connect Chrome wallet', exact: true }),
+    ).toBeVisible();
+    await entry.close();
     const page = await context.newPage();
     await page.goto(
       'http://127.0.0.1:4321/?contract=demos/signing-and-proof.mdx',
@@ -78,14 +102,14 @@ test('real Chrome extension isolates keys, requires approval, reviews changes, a
       popup.getByRole('region', { name: 'Signing review' }),
     ).toContainText('Deadline');
     await expect(
-      popup.getByRole('button', { name: 'Approve signature', exact: true }),
+      popup.getByRole('button', { name: 'Sign contract', exact: true }),
     ).toBeDisabled();
     await popup
       .getByLabel('Wallet password', { exact: true })
       .fill('test-only wallet password');
     await popup.getByRole('checkbox').check();
     await popup
-      .getByRole('button', { name: 'Approve signature', exact: true })
+      .getByRole('button', { name: 'Sign contract', exact: true })
       .click();
     await expect(
       page.getByText('1/1 parties signed this version.'),

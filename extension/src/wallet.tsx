@@ -1,3 +1,4 @@
+import { allowedSite } from './policy';
 import { readCard, signWithCard, type Card } from './card';
 import {
   certificateDetails,
@@ -140,6 +141,46 @@ function Wallet() {
   return (
     <main>
       <h1>Tractate wallet</h1>
+      {!token && (
+        <section aria-label="Sign a contract">
+          <button
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const { pending: request } =
+                  await chrome.storage.session.get('pending');
+                if (request?.windowId && request.expires > Date.now()) {
+                  await chrome.windows.update(request.windowId, {
+                    focused: true,
+                  });
+                } else {
+                  const [tab] = await chrome.tabs.query({
+                    active: true,
+                    currentWindow: true,
+                  });
+                  if (tab?.id && allowedSite(tab.url || '')) {
+                    await chrome.tabs.sendMessage(tab.id, {
+                      type: 'tractate:open-sign',
+                    });
+                  } else {
+                    await chrome.tabs.create({
+                      url: 'https://kuip.github.io/tractate/?action=sign',
+                    });
+                  }
+                }
+                window.close();
+              })
+            }
+          >
+            Sign a contract
+          </button>
+          <p>
+            Open signing for the contract in your active Chrome tab, or open the
+            editor to choose one. If an approval window is already open, return
+            to it.
+          </p>
+        </section>
+      )}
       {pending && (
         <>
           <p>
@@ -192,114 +233,123 @@ function Wallet() {
           )}
         </>
       )}
-      <label>
-        Wallet password
-        <input
-          type="password"
-          autoComplete="off"
-          aria-label="Wallet password"
-          value={password}
-          disabled={busy}
-          onInput={(event) => setPassword(event.currentTarget.value)}
-        />
-      </label>
-      <button
-        disabled={busy}
-        onClick={() =>
-          void run(async () => saveWallet(await createKeystore(password)))
-        }
-      >
-        Create wallet
-      </button>
-      <label>
-        Import encrypted wallet
-        <input
-          type="file"
-          aria-label="Import encrypted wallet"
-          accept=".json"
-          disabled={busy}
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            event.currentTarget.value = '';
-            if (file)
-              void run(async () => {
-                if (file.size > 4096)
-                  throw new Error('Wallet backup is too large.');
-                const wallet = parseKeystore(JSON.parse(await file.text()));
-                const secret = await unlockKeystore(wallet, password);
-                secret.fill(0);
-                await saveWallet(wallet);
-              });
-          }}
-        />
-      </label>
-      <p>
-        Use at least 12 characters. Keep an encrypted backup and its password
-        separately. The password and private key stay inside this extension.
-      </p>
-      <section aria-label="eID card">
-        <h2>Sign with an eID card</h2>
-        <p>
-          Estonia (including e-Residency), Finland, Latvia and Lithuania through
-          Web eID. Support depends on the installed ID software and card
-          generation. Swedish cards are not supported by this bridge.
-        </p>
-        <button
-          disabled={busy}
-          onClick={() =>
-            void run(async () => {
-              const next = await readCard(
-                pending ? pending.site : 'https://kuip.github.io',
-              );
-              setCard(next);
-              setSelected(next.publicKey);
-            })
-          }
-        >
-          Read eID signing card
-        </button>
-        <p>
-          Insert your card into its reader. Enter the signing PIN only in the
-          Web eID application; the wallet password above is only for software
-          wallets.
-        </p>
-        <details>
-          <summary>Set up the card reader bridge</summary>
+      {pending?.method !== 'sign' && (
+        <details open={!pending && !wallets.length}>
+          <summary>Manage software wallets</summary>
+          <label>
+            Wallet password
+            <input
+              type="password"
+              autoComplete="off"
+              aria-label="Wallet password"
+              value={password}
+              disabled={busy}
+              onInput={(event) => setPassword(event.currentTarget.value)}
+            />
+          </label>
+          <button
+            disabled={busy}
+            onClick={() =>
+              void run(async () => saveWallet(await createKeystore(password)))
+            }
+          >
+            Create wallet
+          </button>
+          <label>
+            Import encrypted wallet
+            <input
+              type="file"
+              aria-label="Import encrypted wallet"
+              accept=".json"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file)
+                  void run(async () => {
+                    if (file.size > 4096)
+                      throw new Error('Wallet backup is too large.');
+                    const wallet = parseKeystore(JSON.parse(await file.text()));
+                    const secret = await unlockKeystore(wallet, password);
+                    secret.fill(0);
+                    await saveWallet(wallet);
+                  });
+              }}
+            />
+          </label>
           <p>
-            Install the official Web eID / ID software first. Then download the
-            setup script and run it with Node.js, using this extension ID:
-          </p>
-          <code>{chrome.runtime.id}</code>
-          <p>
-            <a
-              href="install-card-bridge.mjs"
-              download="install-card-bridge.mjs"
-            >
-              Download bridge setup
-            </a>
-          </p>
-          <pre>{`node install-card-bridge.mjs ${chrome.runtime.id}`}</pre>
-          <p>
-            The setup registers the installed Web eID application for this
-            extension only. It supports Chrome on macOS, Linux and Windows. No
-            keys or PINs are copied.
+            Use at least 12 characters. Keep an encrypted backup and its
+            password separately. The password and private key stay inside this
+            extension.
           </p>
         </details>
-        {card && selected === card.publicKey && (
-          <>
+      )}
+      <details open={!wallets.length}>
+        <summary>Use an eID card</summary>
+        <section aria-label="eID card">
+          <h2>Sign with an eID card</h2>
+          <p>
+            Estonia (including e-Residency), Finland, Latvia and Lithuania
+            through Web eID. Support depends on the installed ID software and
+            card generation. Swedish cards are not supported by this bridge.
+          </p>
+          <button
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const next = await readCard(
+                  pending ? pending.site : 'https://kuip.github.io',
+                );
+                setCard(next);
+                setSelected(next.publicKey);
+              })
+            }
+          >
+            Read eID signing card
+          </button>
+          <p>
+            Insert your card into its reader. Enter the signing PIN only in the
+            Web eID application; the wallet password above is only for software
+            wallets.
+          </p>
+          <details>
+            <summary>Set up the card reader bridge</summary>
             <p>
-              Certificate subject (unverified):{' '}
-              {certificateDetails(card.certificate).subject}
+              Install the official Web eID / ID software first. Then download
+              the setup script and run it with Node.js, using this extension ID:
             </p>
-            <p>Expires: {certificateDetails(card.certificate).notAfter}</p>
-            <p>{certificateTrustNotice}</p>
+            <code>{chrome.runtime.id}</code>
             <p>
-              Signing shares this certificate, which can contain your name and
-              personal identifier, with the contract parties.
+              <a
+                href="install-card-bridge.mjs"
+                download="install-card-bridge.mjs"
+              >
+                Download bridge setup
+              </a>
             </p>
-          </>
-        )}
-      </section>
+            <pre>{`node install-card-bridge.mjs ${chrome.runtime.id}`}</pre>
+            <p>
+              The setup registers the installed Web eID application for this
+              extension only. It supports Chrome on macOS, Linux and Windows. No
+              keys or PINs are copied.
+            </p>
+          </details>
+          {card && selected === card.publicKey && (
+            <>
+              <p>
+                Certificate subject (unverified):{' '}
+                {certificateDetails(card.certificate).subject}
+              </p>
+              <p>Expires: {certificateDetails(card.certificate).notAfter}</p>
+              <p>{certificateTrustNotice}</p>
+              <p>
+                Signing shares this certificate, which can contain your name and
+                personal identifier, with the contract parties.
+              </p>
+            </>
+          )}
+        </section>
+      </details>
       {review && <SigningReview review={review} previous={previous} />}
       {envelope && (
         <details>
@@ -309,6 +359,34 @@ function Wallet() {
       )}
       {pending?.method === 'sign' && (
         <>
+          <h2>Sign this contract</h2>
+          {!selected.startsWith('x509:') && (
+            <label>
+              Wallet password
+              <input
+                type="password"
+                autoComplete="off"
+                aria-label="Wallet password"
+                value={password}
+                disabled={busy}
+                onInput={(event) => setPassword(event.currentTarget.value)}
+              />
+            </label>
+          )}
+          {!selected ? (
+            <p>Choose a wallet above to sign.</p>
+          ) : !envelope?.parties.includes(selected) ? (
+            <p>
+              This wallet is not in the required party list. Add its public key
+              in the editor before signing.
+            </p>
+          ) : (
+            <p>
+              Review the contract above, enter your wallet password (or use your
+              card PIN when prompted), then check the box to enable signing.
+            </p>
+          )}
+
           <label>
             <input
               type="checkbox"
@@ -357,7 +435,7 @@ function Wallet() {
               })
             }
           >
-            Approve signature
+            Sign contract
           </button>
         </>
       )}
