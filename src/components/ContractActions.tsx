@@ -65,6 +65,7 @@ export default function ContractActions({
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
   const [parties, setParties] = useState('');
   const [dataType, setDataType] = useState(
     import.meta.env.PUBLIC_KAYROS_DATA_TYPE || 'tractate_v1',
@@ -103,6 +104,35 @@ export default function ContractActions({
   latest.current = envelope;
   const verified = verifiedSigners(envelope);
   const complete = valid && ready && canRegister(envelope);
+  let partyError = '';
+  let partiesChanged = false;
+  try {
+    partiesChanged =
+      parseParties(parties).join('\n') !== envelope.parties.join('\n');
+  } catch (err) {
+    partyError = (err as Error).message;
+  }
+  const signingBlocked = !valid
+    ? 'Fix the source errors before signing.'
+    : !ready
+      ? bindingError || 'Checking the approved template…'
+      : !selectedWallet
+        ? 'Connect Chrome wallet first, then add your public key to the required parties.'
+        : partyError ||
+          (partiesChanged
+            ? 'Click Set parties to apply your edited party list.'
+            : !envelope.parties.includes(selectedWallet)
+              ? 'Add your key to the required parties before signing.'
+              : '');
+  const proofBlocked = !valid
+    ? 'Fix the source errors before downloading a proof.'
+    : !ready
+      ? bindingError || 'Checking the approved template…'
+      : !envelope.parties.length
+        ? 'Set the required parties, then collect their signatures to download a proof.'
+        : !complete
+          ? `Awaiting ${envelope.parties.length - verified.length} of ${envelope.parties.length} required signatures for this version.`
+          : '';
   useEffect(() => {
     if (!panel) return;
     modal.current?.showModal();
@@ -156,6 +186,13 @@ export default function ContractActions({
     }
   };
   const sign = async () => {
+    if (signingBlocked) {
+      setError(signingBlocked);
+      return;
+    }
+    setProgress(
+      'Checking the contract, then opening the Chrome wallet for approval…',
+    );
     setBusy(true);
     setError('');
     try {
@@ -201,6 +238,7 @@ export default function ContractActions({
     }
   };
   const connect = async () => {
+    setProgress('Approve the connection in the Chrome wallet window…');
     setBusy(true);
     setError('');
     try {
@@ -216,6 +254,13 @@ export default function ContractActions({
     }
   };
   const downloadProof = async () => {
+    if (proofBlocked) {
+      setError(proofBlocked);
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setProgress('Verifying signatures and preparing the proof…');
     try {
       const proof = await createSigningProof(latest.current);
       const url = URL.createObjectURL(
@@ -230,6 +275,8 @@ export default function ContractActions({
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   };
   const exportLegacy = () => {
@@ -444,16 +491,18 @@ export default function ContractActions({
                 </label>
                 <button
                   disabled={busy}
-                  onClick={() =>
-                    setParties(
-                      parseParties(
-                        parties +
-                          (parties.includes(selectedWallet)
-                            ? ''
-                            : '\n' + selectedWallet),
-                      ).join('\n'),
-                    )
-                  }
+                  onClick={() => {
+                    try {
+                      const required = parseParties(
+                        parties + '\n' + selectedWallet,
+                      );
+                      onChange({ ...envelope, parties: required });
+                      setParties(required.join('\n'));
+                      setError('');
+                    } catch (err) {
+                      setError((err as Error).message);
+                    }
+                  }}
                 >
                   Add my key to parties
                 </button>
@@ -481,24 +530,29 @@ export default function ContractActions({
               <p>Contract fingerprint: {digest(envelope)}</p>
             </details>
             <button
-              disabled={
-                busy ||
-                !valid ||
-                !ready ||
-                !selectedWallet ||
-                !envelope.parties.includes(selectedWallet) ||
-                parties !== envelope.parties.join('\n')
-              }
+              disabled={busy || !!signingBlocked}
+              aria-describedby="signing-requirement"
               onClick={() => void sign()}
             >
               Review in Chrome wallet
             </button>
+            <p id="signing-requirement" role="status">
+              {busy
+                ? progress
+                : signingBlocked ||
+                  'Ready to review and sign in the Chrome wallet.'}
+            </p>
             <button
-              disabled={!complete || busy}
+              disabled={!!proofBlocked || busy}
+              aria-describedby="proof-requirement"
               onClick={() => void downloadProof()}
             >
               Download signing proof
             </button>
+            <p id="proof-requirement">
+              {proofBlocked ||
+                'All required signatures verified. The proof is ready to download.'}
+            </p>
             <p>
               Share the final proof with every party. It can be verified in the
               extension or with the public library independently of this editor.
@@ -573,6 +627,10 @@ export default function ContractActions({
             <button disabled={!complete} onClick={() => void downloadProof()}>
               Download signing proof
             </button>
+            <p id="proof-requirement">
+              {proofBlocked ||
+                'All required signatures verified. The proof is ready to download.'}
+            </p>
           </>
         )}
         {error && <p role="alert">{error}</p>}

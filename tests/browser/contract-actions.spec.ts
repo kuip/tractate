@@ -71,6 +71,15 @@ test('extension bridge signatures survive sharing and reload; proof and registra
   await expect(page.getByLabel('Wallet password', { exact: true })).toHaveCount(
     0,
   );
+  await expect(page.locator('#signing-requirement')).toContainText(
+    'Connect Chrome wallet first',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Download signing proof', exact: true }),
+  ).toBeDisabled();
+  await expect(page.locator('#proof-requirement')).toContainText(
+    'Set the required parties',
+  );
   await page
     .getByRole('button', { name: 'Connect Chrome wallet', exact: true })
     .click();
@@ -78,9 +87,25 @@ test('extension bridge signatures survive sharing and reload; proof and registra
     page.getByRole('textbox', { name: 'My public key' }),
   ).toHaveValue(nativeParty(alice));
   await page
+    .getByRole('button', { name: 'Add my key to parties', exact: true })
+    .click();
+  await expect(
+    page.getByText('0/1 parties signed this version.'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Review in Chrome wallet', exact: true }),
+  ).toBeEnabled();
+  await page
     .getByRole('textbox', { name: 'Required party public keys' })
     .fill(`${nativeParty(alice)}\n${nativeParty(bob)}`);
+  await expect(page.locator('#signing-requirement')).toContainText(
+    'Click Set parties',
+  );
   await page.getByRole('button', { name: 'Set parties', exact: true }).click();
+  await page
+    .getByRole('textbox', { name: 'Required party public keys' })
+    .fill(`  ${nativeParty(bob)}\n${nativeParty(alice)}\n`);
+
   await page
     .getByRole('button', { name: 'Review in Chrome wallet', exact: true })
     .click();
@@ -212,4 +237,26 @@ test('MDX capability imports display proof and open a review including inactive-
   await expect(
     page.getByRole('button', { name: 'Connect Chrome wallet', exact: true }),
   ).toBeVisible();
+});
+
+test('missing Chrome extension gives an actionable error', async ({ page }) => {
+  await page.goto('/?contract=demos/signing-and-proof.mdx');
+  await page
+    .frameLocator('iframe')
+    .getByRole('tab', { name: 'Signatures', exact: true })
+    .click();
+  await page
+    .frameLocator('iframe')
+    .getByRole('button', { name: 'Review all fields and sign', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Connect Chrome wallet', exact: true })
+    .click();
+  await expect(page.locator('#signing-requirement')).toContainText(
+    'Approve the connection',
+  );
+  await expect(page.getByRole('alert')).toContainText('extension');
+  await expect(
+    page.getByRole('button', { name: 'Connect Chrome wallet', exact: true }),
+  ).toBeEnabled();
 });
