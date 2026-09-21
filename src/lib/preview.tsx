@@ -1,3 +1,4 @@
+import { loadEditorFonts } from './fonts';
 import {
   ContractSign,
   ContractProof,
@@ -185,7 +186,8 @@ const components = {
     </a>
   ),
 };
-window.addEventListener('message', (event) => {
+const fontsReady = loadEditorFonts();
+window.addEventListener('message', async (event) => {
   if (
     event.source !== parent ||
     event.data?.type !== 'tractate:render' ||
@@ -193,6 +195,7 @@ window.addEventListener('message', (event) => {
   )
     return;
   try {
+    await fontsReady;
     const { default: Content } = new Function(event.data.code)(runtime) as {
       default: (props: { components: typeof components }) => VNode;
     };
@@ -226,4 +229,7 @@ window.addEventListener('message', (event) => {
     );
   }
 });
-parent.postMessage({ type: 'tractate:ready' }, '*');
+const notifyReady = () => parent.postMessage({ type: 'tractate:ready' }, '*');
+// On failure the host still sends its render request so the error can be
+// reported with the matching document revision; no output is rendered.
+void fontsReady.then(notifyReady, notifyReady);

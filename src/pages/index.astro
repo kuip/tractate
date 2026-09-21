@@ -1,5 +1,4 @@
 ---
-import App from '../components/App';
 import '../styles/global.css';
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 ---
@@ -20,7 +19,30 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
     <title>Tractate — Contract workspace</title>
   </head>
   <body>
-    <App client:only="preact" />
+    <div id="editor-root"></div>
+    <script>
+      import { render } from 'preact';
+      import { createElement } from 'preact';
+      import App from '../components/App';
+      import { loadEditorFonts } from '../lib/fonts';
+
+      const root = document.getElementById('editor-root')!;
+      loadEditorFonts()
+        .then(() => {
+          render(createElement(App, {}), root);
+        })
+        .catch(() => {
+          // Keep the editor unmounted if its fonts fail, with a recovery action.
+          const message = document.createElement('p');
+          message.setAttribute('role', 'alert');
+          message.textContent =
+            'Unable to load editor fonts. Check your connection and reload.';
+          const retry = document.createElement('button');
+          retry.textContent = 'Reload';
+          retry.onclick = () => location.reload();
+          root.replaceChildren(message, retry);
+        });
+    </script>
     <noscript>Enable JavaScript to use the Tractate editor.</noscript>
   </body>
 </html>
