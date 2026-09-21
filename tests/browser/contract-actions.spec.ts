@@ -164,7 +164,7 @@ test('extension bridge signatures survive sharing and reload; proof and registra
     await readFile((await (await proofDownload).path())!, 'utf8'),
   );
   const result = await verifySigningProof(proof);
-  expect(canRegister(result.envelope)).toBe(true);
+  expect(await canRegister(result.envelope)).toBe(true);
   await page.getByRole('button', { name: 'Close contract action' }).click();
   await expect
     .poll(async () =>
@@ -199,7 +199,7 @@ test('extension bridge signatures survive sharing and reload; proof and registra
     .click();
   await expect(page.getByText(/Kayros accepted the hash/)).toBeVisible();
   expect(submissions).toEqual([
-    registrationPayload(result.envelope, 'tractate_v1'),
+    await registrationPayload(result.envelope, 'tractate_v1'),
   ]);
   await page.getByRole('button', { name: 'Close contract action' }).click();
   await page

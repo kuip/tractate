@@ -1,3 +1,4 @@
+import { parseCardAlgorithm } from './certificates.js';
 import {
   digest,
   hydrateEnvelope,
@@ -8,8 +9,8 @@ import {
 } from './envelope.js';
 import { sourceHash } from './templates.js';
 // Stable registration commitment, independent of invalid or duplicate attestations.
-export function signedPackageHash(envelope: Envelope) {
-  const records = validAttestations(envelope);
+export async function signedPackageHash(envelope: Envelope) {
+  const records = await validAttestations(envelope);
   if (!envelope.parties.length || records.length !== envelope.parties.length)
     throw new Error('Every required party must sign this version.');
   return sourceHash(
@@ -21,17 +22,23 @@ export function signedPackageHash(envelope: Envelope) {
       sourceHash: sourceHash(envelope.source),
       parties: envelope.parties,
       signatures: envelope.parties.map((party) => {
-        const { signer, digest, signature } = records.find(
-          (item) => item.signer === party,
-        )!;
-        return { signer, digest, signature };
+        const { signer, digest, signature, certificate, algorithm } =
+          records.find((item) => item.signer === party)!;
+        return {
+          signer,
+          digest,
+          signature,
+          ...(certificate
+            ? { certificate, algorithm: parseCardAlgorithm(algorithm) }
+            : {}),
+        };
       }),
     }),
   );
 }
 export async function verifyPackage(value: unknown) {
   const envelope = await hydrateEnvelope(value);
-  const signed = verifiedSigners(envelope);
+  const signed = await verifiedSigners(envelope);
   const missing = envelope.parties.filter((party) => !signed.includes(party));
   const complete = envelope.parties.length > 0 && missing.length === 0;
   return {
@@ -40,8 +47,9 @@ export async function verifyPackage(value: unknown) {
     signed,
     missing,
     complete,
+    identityVerified: false as const,
     ignoredSignatures: envelope.signatures.length - signed.length,
-    packageHash: complete ? signedPackageHash(envelope) : null,
+    packageHash: complete ? await signedPackageHash(envelope) : null,
   };
 }
 export async function createSigningProof(envelope: Envelope) {
@@ -80,10 +88,10 @@ export async function mergeSignedPackages(values: unknown[]) {
     );
   const unique = new Map<
     string,
-    ReturnType<typeof validAttestations>[number]
+    Awaited<ReturnType<typeof validAttestations>>[number]
   >();
   for (const result of results)
-    for (const record of validAttestations(result.envelope))
+    for (const record of await validAttestations(result.envelope))
       unique.set(record.signer, record);
   return portableEnvelope({
     ...first.envelope,

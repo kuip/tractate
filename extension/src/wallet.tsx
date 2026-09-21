@@ -1,3 +1,8 @@
+import { readCard, signWithCard, type Card } from './card';
+import {
+  certificateDetails,
+  certificateTrustNotice,
+} from '../../packages/contract-kit/src/certificates';
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import {
@@ -35,6 +40,7 @@ function download(name: string, value: unknown) {
 function Wallet() {
   const [wallets, setWallets] = useState<Keystore[]>([]);
   const [selected, setSelected] = useState('');
+  const [card, setCard] = useState<Card>();
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -83,7 +89,8 @@ function Wallet() {
         const old = stored[id] as Envelope | undefined;
         if (
           old &&
-          (old.id !== envelope.id || !verifiedSigners(old).includes(selected))
+          (old.id !== envelope.id ||
+            !(await verifiedSigners(old)).includes(selected))
         )
           throw new Error('Stored signing history could not be verified.');
         const prior = old ? await reviewContract(old) : undefined;
@@ -154,6 +161,9 @@ function Wallet() {
           onChange={(event) => setSelected(event.currentTarget.value)}
         >
           <option value="">Choose a wallet</option>
+          {card && (
+            <option value={card.publicKey}>eID card: {card.publicKey}</option>
+          )}
           {wallets.map((wallet) => (
             <option key={wallet.publicKey} value={wallet.publicKey}>
               {wallet.publicKey}
@@ -167,17 +177,19 @@ function Wallet() {
             Public key
             <textarea aria-label="Public key" readOnly value={selected} />
           </label>
-          <button
-            disabled={busy}
-            onClick={() =>
-              download(
-                'kayros-wallet.json',
-                wallets.find((wallet) => wallet.publicKey === selected),
-              )
-            }
-          >
-            Export encrypted wallet backup
-          </button>
+          {!selected.startsWith('x509:') && (
+            <button
+              disabled={busy}
+              onClick={() =>
+                download(
+                  'kayros-wallet.json',
+                  wallets.find((wallet) => wallet.publicKey === selected),
+                )
+              }
+            >
+              Export encrypted wallet backup
+            </button>
+          )}
         </>
       )}
       <label>
@@ -225,6 +237,69 @@ function Wallet() {
         Use at least 12 characters. Keep an encrypted backup and its password
         separately. The password and private key stay inside this extension.
       </p>
+      <section aria-label="eID card">
+        <h2>Sign with an eID card</h2>
+        <p>
+          Estonia (including e-Residency), Finland, Latvia and Lithuania through
+          Web eID. Support depends on the installed ID software and card
+          generation. Swedish cards are not supported by this bridge.
+        </p>
+        <button
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              const next = await readCard(
+                pending ? pending.site : 'https://kuip.github.io',
+              );
+              setCard(next);
+              setSelected(next.publicKey);
+            })
+          }
+        >
+          Read eID signing card
+        </button>
+        <p>
+          Insert your card into its reader. Enter the signing PIN only in the
+          Web eID application; the wallet password above is only for software
+          wallets.
+        </p>
+        <details>
+          <summary>Set up the card reader bridge</summary>
+          <p>
+            Install the official Web eID / ID software first. Then download the
+            setup script and run it with Node.js, using this extension ID:
+          </p>
+          <code>{chrome.runtime.id}</code>
+          <p>
+            <a
+              href="https://kuip.github.io/tractate/downloads/install-card-bridge.mjs"
+              download
+            >
+              Download bridge setup
+            </a>
+          </p>
+          <pre>{`node install-card-bridge.mjs ${chrome.runtime.id}`}</pre>
+          <p>
+            The setup registers the installed Web eID application for this
+            extension only. It supports Chrome on macOS, Linux and Windows. No
+            keys or PINs are copied.
+          </p>
+        </details>
+        {card && selected === card.publicKey && (
+          <>
+            <p>
+              Certificate subject (unverified):{' '}
+              {certificateDetails(card.certificate).subject}
+            </p>
+            <p>Expires: {certificateDetails(card.certificate).notAfter}</p>
+            <p>{certificateTrustNotice}</p>
+            <p>
+              Signing shares this certificate, which can contain your name and
+              personal identifier, with the contract parties.
+            </p>
+          </>
+        )}
+      </section>
       {review && <SigningReview review={review} previous={previous} />}
       {envelope && (
         <details>
@@ -265,12 +340,12 @@ function Wallet() {
                 const wallet = wallets.find(
                   (item) => item.publicKey === selected,
                 );
-                if (!wallet) throw new Error('Choose a wallet.');
-                const signature = await signWithKeystore(
-                  envelope,
-                  wallet,
-                  password,
-                );
+                if (!wallet && card?.publicKey !== selected)
+                  throw new Error('Choose a wallet or read your card.');
+                const signature =
+                  card?.publicKey === selected
+                    ? await signWithCard(envelope, card, request.pending.site)
+                    : await signWithKeystore(envelope, wallet!, password);
                 const signed = {
                   ...envelope,
                   signatures: [...envelope.signatures, signature],
@@ -329,7 +404,7 @@ function Wallet() {
                   setEnvelope(result.envelope);
                   setReview(await reviewContract(result.envelope));
                   setProofStatus(
-                    `All ${result.signed.length} required signatures verified. Package hash: ${result.packageHash}. This proves signing, not Kayros inclusion.`,
+                    `All ${result.signed.length} required signatures verified. Package hash: ${result.packageHash}. This proves signing, not Kayros inclusion. Identity and certificate trust are not verified.`,
                   );
                 });
             }}

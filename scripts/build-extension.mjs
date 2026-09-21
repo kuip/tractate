@@ -24,6 +24,10 @@ for (const file of ['manifest.json', 'wallet.html'])
 console.log('Load extension/dist as an unpacked Chrome extension.');
 
 await mkdir('public/downloads', { recursive: true });
+await copyFile(
+  'extension/native/install-card-bridge.mjs',
+  'public/downloads/install-card-bridge.mjs',
+);
 await rm('public/downloads/tractate-wallet.zip', { force: true });
 execFileSync(
   'zip',

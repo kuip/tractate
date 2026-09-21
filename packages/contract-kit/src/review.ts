@@ -57,6 +57,6 @@ export function reviewChanges(current: Review, previous?: Review) {
     ? changes
     : ['No changes since your previous signature.'];
 }
-export function isSignedReview(envelope: Envelope, signer: string) {
-  return verifiedSigners(envelope).includes(signer);
+export async function isSignedReview(envelope: Envelope, signer: string) {
+  return (await verifiedSigners(envelope)).includes(signer);
 }

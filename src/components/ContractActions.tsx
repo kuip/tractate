@@ -1,3 +1,4 @@
+import { certificateTrustNotice } from '../../packages/contract-kit/src/certificates';
 import { kayrosEndpoint, registerContract } from '../lib/kayros';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { requestWallet } from '../../packages/contract-kit/src/bridge';
@@ -10,7 +11,6 @@ import SigningReview from './SigningReview';
 import QRCode from 'qrcode';
 import Menu from './Menu';
 import {
-  canRegister,
   digest,
   parseParties,
   prepareEnvelope,
@@ -102,8 +102,31 @@ export default function ContractActions({
   const modal = useRef<HTMLDialogElement>(null);
   const latest = useRef(envelope);
   latest.current = envelope;
-  const verified = verifiedSigners(envelope);
-  const complete = valid && ready && canRegister(envelope);
+  const verificationKey = JSON.stringify(envelope);
+  const [verification, setVerification] = useState<{
+    key: string;
+    signed: string[];
+  }>();
+  useEffect(() => {
+    let disposed = false;
+    verifiedSigners(envelope)
+      .then((signed) => {
+        if (!disposed) setVerification({ key: verificationKey, signed });
+      })
+      .catch(() => {
+        if (!disposed) setVerification(undefined);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [verificationKey]);
+  const verified =
+    verification?.key === verificationKey ? verification.signed : [];
+  const complete =
+    valid &&
+    ready &&
+    envelope.parties.length > 0 &&
+    verified.length === envelope.parties.length;
   let partyError = '';
   let partiesChanged = false;
   try {
@@ -228,7 +251,7 @@ export default function ContractActions({
           attestation,
         ],
       };
-      if (!verifiedSigners(signed).includes(selectedWallet))
+      if (!(await verifiedSigners(signed)).includes(selectedWallet))
         throw new Error('The signature could not be verified.');
       onChange(signed);
     } catch (err) {
@@ -418,8 +441,8 @@ export default function ContractActions({
           <>
             <p>
               Each required party signs the approved template reference,
-              document hash, and party list with a native Ed25519 key. No other
-              blockchain is involved.
+              document hash, and party list with a wallet or supported eID card
+              key. No other blockchain is involved.
             </p>
             <p>
               {ready
@@ -432,7 +455,7 @@ export default function ContractActions({
                 aria-label="Required party public keys"
                 value={parties}
                 onInput={(event) => setParties(event.currentTarget.value)}
-                placeholder="One ed25519: public key per party"
+                placeholder="One ed25519: key or x509: certificate fingerprint per party"
               />
             </label>
             <button
@@ -494,7 +517,12 @@ export default function ContractActions({
                   onClick={() => {
                     try {
                       const required = parseParties(
-                        parties + '\n' + selectedWallet,
+                        [
+                          ...new Set([
+                            ...parseParties(parties),
+                            selectedWallet,
+                          ]),
+                        ].join('\n'),
                       );
                       onChange({ ...envelope, parties: required });
                       setParties(required.join('\n'));
@@ -519,6 +547,12 @@ export default function ContractActions({
                 Export legacy encrypted wallets
               </button>
             </details>
+            {envelope.parties.some((party) => party.startsWith('x509:')) && (
+              <p>
+                {certificateTrustNotice} Certificates shared with the proof may
+                contain names and personal identifiers.
+              </p>
+            )}
             {review && <SigningReview review={review} />}
             <p>
               The extension shows changes against its own verified signing

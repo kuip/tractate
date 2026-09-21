@@ -1,8 +1,11 @@
 import { signedPackageHash } from '../../packages/contract-kit/src/proof';
 import { canRegister, prepareEnvelope, type Envelope } from './envelope';
 export const kayrosEndpoint = 'https://kayros.provable.dev/api/lightnet/hash';
-export function registrationPayload(envelope: Envelope, dataType: string) {
-  if (!canRegister(envelope))
+export async function registrationPayload(
+  envelope: Envelope,
+  dataType: string,
+) {
+  if (!(await canRegister(envelope)))
     throw new Error(
       'All required parties must sign this exact version before registration.',
     );
@@ -10,14 +13,14 @@ export function registrationPayload(envelope: Envelope, dataType: string) {
     throw new Error(
       'Enter a Kayros data type of 1–32 ASCII letters, digits, underscores, or hyphens.',
     );
-  return { data_type: dataType, data_item: signedPackageHash(envelope) };
+  return { data_type: dataType, data_item: await signedPackageHash(envelope) };
 }
 export async function registerContract(
   envelope: Envelope,
   dataType: string,
   userKey: string,
 ) {
-  const body = registrationPayload(
+  const body = await registrationPayload(
     await prepareEnvelope(envelope, true),
     dataType,
   );

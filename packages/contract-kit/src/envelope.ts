@@ -1,4 +1,10 @@
 import {
+  certificateParty,
+  parseCardAlgorithm,
+  verifyCertificateSignature,
+  type CardAlgorithm,
+} from './certificates.js';
+import {
   approvedReference,
   bindTemplate,
   loadTemplate,
@@ -10,7 +16,13 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { MAX_SOURCE_LENGTH } from './constants.js';
 
-export type Attestation = { signer: string; digest: string; signature: string };
+export type Attestation = {
+  signer: string;
+  digest: string;
+  signature: string;
+  certificate?: string;
+  algorithm?: CardAlgorithm;
+};
 export type Envelope = {
   version: 2;
   reference?: string;
@@ -57,7 +69,9 @@ export function signEnvelope(
     signature: bytesToHex(ed25519.sign(signingBytes(envelope), secret)),
   };
 }
-export function validAttestations(envelope: Envelope): Attestation[] {
+export async function validAttestations(
+  envelope: Envelope,
+): Promise<Attestation[]> {
   if (!envelope.reference) return [];
   try {
     approvedReference(envelope.reference);
@@ -67,34 +81,49 @@ export function validAttestations(envelope: Envelope): Attestation[] {
   const hash = digest(envelope);
   const payload = signingBytes(envelope);
   const seen = new Set<string>();
-  return envelope.signatures.filter((record) => {
+  const valid: Attestation[] = [];
+  for (const record of envelope.signatures) {
     try {
       if (
         seen.has(record.signer) ||
         !envelope.parties.includes(record.signer) ||
         record.digest !== hash ||
-        !ed25519.verify(
-          hexToBytes(record.signature),
-          payload,
-          hexToBytes(record.signer.slice(8)),
-          { zip215: false },
-        )
+        !(record.signer.startsWith('x509:')
+          ? record.certificate &&
+            record.algorithm &&
+            certificateParty(record.certificate) === record.signer &&
+            (await verifyCertificateSignature(
+              record.certificate,
+              record.algorithm,
+              hexToBytes(record.signature),
+              payload,
+            ))
+          : !record.certificate &&
+            !record.algorithm &&
+            /^ed25519:[a-f0-9]{64}$/.test(record.signer) &&
+            ed25519.verify(
+              hexToBytes(record.signature),
+              payload,
+              hexToBytes(record.signer.slice(8)),
+              { zip215: false },
+            ))
       )
-        return false;
+        continue;
       seen.add(record.signer);
-      return true;
+      valid.push(record);
     } catch {
-      return false;
+      continue;
     }
-  });
+  }
+  return valid;
 }
-export function verifiedSigners(envelope: Envelope): string[] {
-  return validAttestations(envelope).map((record) => record.signer);
+export async function verifiedSigners(envelope: Envelope): Promise<string[]> {
+  return (await validAttestations(envelope)).map((record) => record.signer);
 }
-export function canRegister(envelope: Envelope) {
+export async function canRegister(envelope: Envelope) {
   return (
     envelope.parties.length > 0 &&
-    verifiedSigners(envelope).length === envelope.parties.length
+    (await verifiedSigners(envelope)).length === envelope.parties.length
   );
 }
 export function parseParties(value: string) {
@@ -104,10 +133,10 @@ export function parseParties(value: string) {
     .map((item) => item.toLowerCase());
   if (
     items.length > 20 ||
-    items.some((item) => !/^ed25519:[a-f0-9]{64}$/.test(item))
+    items.some((item) => !/^(?:ed25519|x509):[a-f0-9]{64}$/.test(item))
   )
     throw new Error(
-      'Enter up to 20 native public keys, one per party (ed25519: followed by 64 hex digits).',
+      'Enter up to 20 party keys, one per party (ed25519: or x509: followed by 64 hex digits).',
     );
   if (new Set(items).size !== items.length)
     throw new Error('Each party must have a different public key.');
@@ -140,13 +169,27 @@ export function parseEnvelope(value: unknown): Envelope {
     if (
       !record ||
       typeof record.signer !== 'string' ||
-      !/^ed25519:[a-f0-9]{64}$/.test(record.signer) ||
+      !/^(?:ed25519|x509):[a-f0-9]{64}$/.test(record.signer) ||
       typeof record.digest !== 'string' ||
       !/^[\da-f]{64}$/i.test(record.digest) ||
       typeof record.signature !== 'string' ||
-      !/^[\da-f]{128}$/i.test(record.signature)
+      !/^(?:[\da-f]{2}){64,1024}$/i.test(record.signature)
     )
       throw new Error('Invalid signature record.');
+    if (record.signer.startsWith('x509:')) {
+      if (
+        !record.certificate ||
+        certificateParty(record.certificate) !== record.signer
+      )
+        throw new Error('Card certificate does not match the required party.');
+      parseCardAlgorithm(record.algorithm);
+    } else if (
+      record.certificate ||
+      record.algorithm ||
+      record.signature.length !== 128
+    ) {
+      throw new Error('Invalid native signature record.');
+    }
   }
   return {
     version: 2,
@@ -155,11 +198,16 @@ export function parseEnvelope(value: unknown): Envelope {
     name: e.name,
     source: e.source,
     parties,
-    signatures: e.signatures.map(({ signer, digest, signature }) => ({
-      signer,
-      digest,
-      signature,
-    })),
+    signatures: e.signatures.map(
+      ({ signer, digest, signature, certificate, algorithm }) => ({
+        signer,
+        digest,
+        signature,
+        ...(certificate
+          ? { certificate, algorithm: parseCardAlgorithm(algorithm) }
+          : {}),
+      }),
+    ),
   };
 }
 export async function prepareEnvelope(envelope: Envelope, fresh = false) {

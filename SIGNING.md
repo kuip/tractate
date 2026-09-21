@@ -24,7 +24,7 @@ UTF-8 bytes of compact `JSON.stringify` with this exact property order:
 
 Do not trim, normalize newlines, or otherwise rewrite signed source. The instance ID is 16 random bytes represented as 32 lowercase hex digits when created by the app. Every party signs the same bytes using Ed25519 (RFC 8032). Signatures and the display fingerprint are stored as lowercase hex: signature is 64 bytes; digest is SHA-256 of the signed bytes (32 bytes). A signature record holds `{signer, digest, signature}`. Verification uses strict Ed25519 verification, checks the current digest, and counts each required public key once. Empty, duplicate, forged, stale, and nonparty signatures cannot complete a contract.
 
-Source, filename, and party-list changes invalidate old signatures for registration. Old attestations can remain in the portable package; they are never counted for a changed version. A reversion to the exact signed bytes restores their validity. Signatures are collected sequentially by sending the current package to each signer. Automatic merging of separately signed branches is not implemented.
+Source, filename, and party-list changes invalidate old signatures for registration. Old attestations can remain in the portable package; they are never counted for a changed version. A reversion to the exact signed bytes restores their validity. Signatures are collected sequentially by sending the current package to each signer. The public library can merge separately signed copies when their signed digests match.
 
 ## Native Chrome extension wallet
 
@@ -62,3 +62,14 @@ Tests use deterministic test keys and a mocked registration endpoint. No live co
 ## Public library and signing proofs
 
 The implementation is shared through packages/contract-kit. A final proof contains `{format: "tractate-signing-proof-v1", contract, packageHash}`. `verifySigningProof` reconstructs the approved contract, verifies every required signature, and recomputes the canonical registration commitment; it does not trust a status flag. `mergeSignedPackages` rejects different signed digests and retains one valid signature per key. Every party should receive the final proof. Kayros inclusion and authenticated checkpoint verification remain separate from this signing proof.
+
+
+## Certificate-backed card signatures (library 0.3.0)
+
+A card party is `x509:` plus the lowercase SHA-256 fingerprint of its DER signing certificate. The sorted required-party list may mix card and Ed25519 identifiers. Card attestations extend the existing record with `{certificate, algorithm}`, where `certificate` is canonical base64 DER and `algorithm` has property order `{cryptoAlgorithm,hashFunction,paddingScheme}`. The canonical registration record uses `{signer,digest,signature,certificate,algorithm}` for cards; Ed25519 records remain unchanged. The consent payload/domain and package version remain v2. Old libraries reject unknown card parties rather than accepting unverifiable signatures.
+
+The card signs a SHA-2 digest of exactly the same consent bytes as other parties. The record's display `digest` remains SHA-256 regardless of the selected signing hash. Supported algorithms are ECDSA P-256/P-384/P-521 with raw fixed-width r||s signatures, RSA PKCS#1 v1.5 and RSA-PSS (salt length equals hash length), SHA-256/384/512, RSA modulus at least 2048 bits. Verification checks the exact certificate fingerprint, algorithm and payload; altered certificates, algorithms or fields cannot count as a valid signature. Card and ordinary signatures can be merged into one proof.
+
+`verifiedSigners`, `validAttestations`, `canRegister`, `signedPackageHash`, `isSignedReview` and the application's `registrationPayload` are asynchronous in 0.3.0. All permission checks must await completion. The editor discards obsolete verification results when its document changes.
+
+A valid signature is not a verified legal identity. Verification reports `identityVerified: false`; certificate issuer trust, revocation, qualified status and trusted signing time are not implemented. Self-signed signing certificates can function as manually confirmed keys. Signing requires current certificate dates and document-signing key usage, but historical key-signature verification deliberately does not use the current date. Web eID handles PIN entry and the private key stays on the card. The extension requires HTTPS for card operations. See extension/README.md for setup and card coverage.

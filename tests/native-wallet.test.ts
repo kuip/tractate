@@ -27,7 +27,10 @@ test('native wallet encrypts, restores and signs; wrong passwords and tampering 
     restored,
     'test-only password 123',
   );
-  assert.equal(canRegister({ ...envelope, signatures: [signature] }), true);
+  assert.equal(
+    await canRegister({ ...envelope, signatures: [signature] }),
+    true,
+  );
   await assert.rejects(
     unlockKeystore(restored, 'wrong password'),
     /Wrong password/,

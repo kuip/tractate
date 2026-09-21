@@ -150,7 +150,7 @@ The review displays all fields across all tabs, all required parties, the pinned
 
 Once all parties sign, **Download signing proof** creates a reference-only `.proof.json` file for distribution to every party. It can be independently verified in the extension or with [@tractate/contract-kit](packages/contract-kit/README.md). The library supports merging signatures from identical versions. A signing proof proves all required keys signed; it does not claim authenticated Kayros inclusion. The extension and library use the same version-2 signed bytes as before.
 
-The public library is available as a [standalone ESM module](https://kuip.github.io/tractate/lib/contract-kit.js) and an [npm-compatible package](https://kuip.github.io/tractate/lib/tractate-contract-kit-0.2.0.tgz). No npm registry publication is required. The **Signing and proof demo** imports `ContractSign` and `ContractProof` from `@tractate/contract-kit/mdx`. The compiler permits this explicit capability import while continuing to reject arbitrary executable imports.
+The public library is available as a [standalone ESM module](https://kuip.github.io/tractate/lib/contract-kit.js) and an [npm-compatible package](https://kuip.github.io/tractate/lib/tractate-contract-kit-0.3.0.tgz). No npm registry publication is required. The **Signing and proof demo** imports `ContractSign` and `ContractProof` from `@tractate/contract-kit/mdx`. The compiler permits this explicit capability import while continuing to reject arbitrary executable imports.
 
 ## Pinned builds
 

@@ -173,3 +173,11 @@ Recommended next: agree the native wallet extension request protocol against SIG
 3. The extension independently reconstructs approved contracts and reviews all fields/parties/template versions and verified previous-signature differences.
 4. packages/contract-kit provides public signing, merging, verification, and portable final proofs; restricted MDX imports expose ContractSign and ContractProof.
 5. Independent security review, authenticated Kayros inclusion proofs, and Chrome Web Store publication remain outstanding.
+
+
+## eID card adapter — implemented September 2026
+
+- Web eID native bridge, installer for Chrome on macOS/Linux/Windows, independent extension review and signature verification.
+- Driver coverage: Estonian, Finnish, Latvian and Lithuanian cards, subject to card generation and installed middleware. No physical-card validation performed yet. Swedish cards and mobile identity services need separate integrations.
+- Mixed Ed25519/X.509 party lists and portable proofs; ECDSA and RSA verification in the public 0.3.0 library. Existing Ed25519 proof hashes remain compatible.
+- Remaining: hardware acceptance tests, issuer trust policies, revocation evidence and trusted timestamps/standard signature containers before claiming government-verified identities or qualified signatures. These limitations are explicit in UI, library results and documentation.
