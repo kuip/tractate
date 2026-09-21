@@ -116,6 +116,17 @@ test('extension card flow reviews the contract, uses the native protocol, and do
     let popup = await opened;
     await popup.waitForLoadState();
     await mockNative(popup);
+    await popup
+      .getByText('Set up the card reader bridge', { exact: true })
+      .click();
+    const setupDownload = popup.waitForEvent('download');
+    await popup.getByRole('link', { name: 'Download bridge setup' }).click();
+    const setup = await setupDownload;
+    expect(setup.suggestedFilename()).toBe('install-card-bridge.mjs');
+    expect(await readFile((await setup.path())!, 'utf8')).toContain(
+      'dev.tractate.webeid',
+    );
+
     await popup.getByRole('button', { name: 'Read eID signing card' }).click();
     await expect(
       popup.getByRole('textbox', { name: 'Public key', exact: true }),

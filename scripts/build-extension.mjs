@@ -21,6 +21,10 @@ await build({
 });
 for (const file of ['manifest.json', 'wallet.html'])
   await copyFile('extension/' + file, 'extension/dist/' + file);
+await copyFile(
+  'extension/native/install-card-bridge.mjs',
+  'extension/dist/install-card-bridge.mjs',
+);
 console.log('Load extension/dist as an unpacked Chrome extension.');
 
 await mkdir('public/downloads', { recursive: true });
@@ -40,6 +44,7 @@ execFileSync(
     'wallet.css',
     'background.js',
     'content.js',
+    'install-card-bridge.mjs',
   ],
   { cwd: 'extension/dist' },
 );

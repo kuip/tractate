@@ -272,8 +272,8 @@ function Wallet() {
           <code>{chrome.runtime.id}</code>
           <p>
             <a
-              href="https://kuip.github.io/tractate/downloads/install-card-bridge.mjs"
-              download
+              href="install-card-bridge.mjs"
+              download="install-card-bridge.mjs"
             >
               Download bridge setup
             </a>
