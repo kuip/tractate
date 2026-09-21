@@ -1,0 +1,131 @@
+# Tractate
+
+An MDX editor/consumer workspace for crypto contracts on the **Kayros lightchain**.
+
+Built with Astro, Preact, and MDX. The app provides contract authoring, portable sharing, native Ed25519 signing, and a Kayros hash-registration adapter. It does not execute contracts. Live registration needs a provisioned Kayros data type and any required API key.
+
+## Run locally
+
+Use Node.js 22.12 or newer (an active LTS release is recommended).
+
+```sh
+npm ci
+npm run dev
+```
+
+Open the local URL printed by Astro. To test the production build and offline behavior:
+
+```sh
+npm run build
+npm run preview
+```
+
+Offline caching is enabled in production builds only, over HTTPS or localhost. Visit once online and let the app finish caching before reopening offline. Browser storage can be evicted; export important work. Offline support means reopening the hosted app, not opening an HTML file with `file://`.
+
+## Workspace
+
+- **Source:** a CodeMirror editor with highlighting, line numbers, undo/redo, and line wrapping.
+- **Output:** the rendered contract with editable fields. Field edits update the MDX source, autosaved draft, and exported file.
+- **Both:** source on the left and output on the right, with a draggable, keyboard-accessible divider. On mobile the panes stack vertically.
+- **File:** new contract, MDX import/export, and contract navigation based on the `contracts/` directory tree.
+- **Insert:** supported contract components and headings.
+- **Help:** the supported writing syntax.
+
+Use the View menu to select Source, Output, or Both, and File → Export MDX to download. Source and output have separate status rows. View choices are Source, Both, Output, and No Menu. No Menu shows output with Send → by Share / by QR, Sign, and Register. The editor menu and wordmark are hidden; press the logo to restore them. View changes retain the mounted editor and output. Each page load starts in Both view so output is visible immediately. One current draft, including its filename and field values, is autosaved to IndexedDB on this device. A notification from another tab pauses autosave to reduce accidental overwrites; export before reloading to resolve that conflict. Storage failures are reported with an export fallback.
+
+The app follows the system light/dark preference and bundles Roboto Condensed and Roboto Mono. Kayros requests are made only when Submit to Kayros is pressed after every required party has signed. Wallet signing is local and uses no other blockchain.
+
+## Supported MDX
+
+Use Markdown headings, lists, tables, blockquotes, code blocks, and links, plus these contract components:
+
+```mdx
+<Contract title="Contribution agreement" network="Kayros" status="Draft">
+  <Field label="Author" value="" placeholder="Your identity" />
+  <Field label="Recipient" value="" placeholder="Contributor identity" />
+</Contract>
+
+<Callout title="Local draft">
+  This contract has not been submitted to the lightchain.
+</Callout>
+```
+
+Properties must be quoted strings. Every `Field` requires `value=""` (or an initial value) and can include a `placeholder` property. Arbitrary JavaScript expressions, imports/exports, raw HTML, images, and unknown components are rejected. Documents are limited to 100,000 characters. Component labels such as `status="Signed"` are author-written text and do not establish verified chain state.
+
+Compilation runs in a worker. Invalid input leaves the last valid output visible and displays the error. The compiled presentation runs in an iframe without same-origin access; its content security policy blocks network connections, forms, and images. Only the small bundled renderer evaluates the validated compiler output. The MDX parser rules and iframe boundary must be reviewed before expanding the supported syntax or adding chain actions.
+
+## Validation
+
+```sh
+npm run check
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+Browser tests cover editing, view switching, malformed source recovery, storage restoration, export, mobile menus, import, and production offline reload. `npm run format` formats the source.
+
+## GitHub Pages
+
+The included workflow can be run manually after this directory is initialized as a Git repository and pushed to GitHub. In the repository settings, select **GitHub Actions** as the Pages source. The workflow validates and builds before deployment.
+
+For a project hosted at `/tractate/`:
+
+```sh
+BASE_PATH=/tractate/ SITE_URL=https://ctzurcanu.github.io npm run build
+BASE_PATH=/tractate/ npm run preview
+```
+
+For an account Pages site or a custom domain, use `/` as `BASE_PATH`. The worker and cached URLs are scoped to this base path. Updates wait for the user to apply them after the current draft is saved.
+
+## Project references
+
+- [Implementation plan](PLAN.md)
+- [Kayros](https://github.com/ctzurcanu/kayros)
+- Local Kayros checkout: `../kayros/`, especially `internal/proto/` and `lightnet/proto/lightnet.proto`.
+- [Astro Preact integration](https://docs.astro.build/en/guides/integrations-guide/preact/)
+- [MDX compiler](https://mdxjs.com/packages/mdx/)
+
+The sample agreement is a presentation template, not executable lightchain code. Native signatures and Kayros hash registration provide consent evidence and a record, not contract execution. See [native signing and registration](SIGNING.md) for the exact format and remaining deployment requirements.
+
+## Static assets and contract files
+
+Put static files in `public/assets/`. Files under `public/` are served unchanged: `public/assets/tractate.svg` becomes `/assets/tractate.svg` locally. Prefix URLs with the configured base path on GitHub Pages. The header uses `public/assets/tractate.svg`; the SVG and `tractate.png` are also registered as browser icons.
+
+Each contract lives in one `.mdx` file under `contracts/<type>/`. The initial directories are `agreements/`, `transfers/`, and `escrow/`. `contracts/agreements/contribution.mdx` is the sample. Files are discovered recursively for **File → Contracts**, and directory names become nested menu entries. Rebuild after adding files to a static deployment. Export edited MDX and save it into this directory to update the repository; browser autosave stays on the device.
+
+## Contract menus and tabs
+
+Open **File → Contracts → demos → Menus and tabs demo**. Its source is `contracts/demos/menus-and-tabs.mdx`. A direct link, `/?contract=demos/menus-and-tabs.mdx`, opens the output immediately and saves edits separately from the main workspace draft.
+
+```mdx
+<Menu label="Resources">
+  <MenuItem label="MDX documentation" href="https://mdxjs.com/docs/" />
+</Menu>
+<Tabs label="Agreement sections">
+  <Tab label="Parties">
+    <Field label="Author" value="" placeholder="Author identity" />
+  </Tab>
+  <Tab label="Terms">
+    <Field label="Purpose" value="" placeholder="Describe the contribution" />
+  </Tab>
+</Tabs>
+```
+
+Application menus and contract menus use the same shared cascading component and styles. Each child opens 20px to the right of its parent, resets to the parent panel’s top, and shows the parent item’s title. Panels narrow at the viewport edge and scroll when necessary. Click outside or press Escape to dismiss; arrow keys navigate levels. Menus can nest. Menu items are links, with `https`, `http`, `mailto`, or local anchor destinations; they do not execute arbitrary scripts. Tabs accept `Tab` children with quoted labels, keep inactive panels mounted, and support arrow keys, Home, and End. Tab selection survives field recompilation; a page reload starts at the first tab. Field values are saved independently of the selected tab.
+
+## Send, Sign, Register
+
+Choose **View → No Menu** (or press the logo) to open the contract action menu.
+
+- **Send → by Share:** generates a portable link with current MDX values, required public keys, and all existing signatures. Use the browser share sheet where available, copy the link, or download a `.tractate.json` package.
+- **Send → by QR:** encodes the same complete snapshot. If it exceeds QR capacity, use the share link or package; nothing is silently omitted.
+- **Sign:** create or import an encrypted native wallet, exchange `ed25519:` public keys, set the complete required-party list, review the document, and sign with the wallet password. Each party can share the partly signed package with the next signer. Export the encrypted wallet backup; it is separate from a contract package.
+- **Register:** enabled only when every required public key has a verified signature on the exact current source and party list. The dialog displays the endpoint and asks for the Kayros data type and API key. Submit records the hash of the signed package. Keep the package itself to prove what was registered.
+
+Wallet creation/unlocking uses WebCrypto and requires HTTPS or localhost. HTTP LAN access still supports editing, sharing, and signature verification. Native wallets use Ed25519; there is no WalletConnect project ID, Ethereum account, gas, or other-chain transaction.
+
+Share links hold compressed packages in the URL fragment. Anyone with the link can read the package; the receiving app imports it into a separate local draft. Values and signatures survive reload. No backend stores readable contracts automatically. Clipboard and native share APIs depend on browser support; download and manual copy remain available.
+
+Set `PUBLIC_KAYROS_DATA_TYPE` from `.env.example` if needed. The suggested `tractate_v1` must be provisioned server-side for a 32-byte item width before real registration. API keys are entered at runtime, held only in the registration dialog, and excluded from files and links. The live service’s health, status, and CORS were checked; live hash submission was not performed.

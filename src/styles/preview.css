@@ -1,0 +1,290 @@
+@import './menu.css';
+@import '@fontsource/roboto-condensed/latin-400.css';
+@import '@fontsource/roboto-condensed/latin-500.css';
+@import '@fontsource/roboto-condensed/latin-600.css';
+@import '@fontsource/roboto-condensed/latin-700.css';
+@import '@fontsource/roboto-mono/latin-400.css';
+:root {
+  font-family: 'Roboto Condensed', sans-serif;
+  color: #383838;
+  background: #eeeeee;
+  --paper: #eeeeee;
+  color-scheme: light;
+  --line: #dcdcdc;
+  --muted: #7b7b7b;
+  --accent: #4c4c4c;
+  --card: #f5f5f5;
+  --ink: #383838;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 40px 42px 55px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+h1 {
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: -1.4px;
+  font-weight: 500;
+  margin: 0 0 22px;
+  color: var(--ink);
+  white-space: pre-line;
+}
+h2 {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.3px;
+  margin: 30px 0 10px;
+}
+h3 {
+  font-weight: 500;
+  font-size: 18px;
+}
+p {
+  margin: 12px 0 18px;
+}
+strong {
+  font-weight: 600;
+}
+a {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+ul,
+ol {
+  padding-left: 21px;
+  margin: 10px 0 22px;
+}
+li {
+  padding: 3px 0 3px 3px;
+}
+li::marker {
+  color: #828282;
+}
+code,
+pre {
+  font:
+    11px/1.7 'Roboto Mono',
+    monospace;
+  background: var(--card);
+  border-radius: 3px;
+}
+code {
+  padding: 2px 5px;
+}
+pre {
+  padding: 16px;
+  overflow: auto;
+}
+pre code {
+  padding: 0;
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 30px 0;
+}
+blockquote {
+  margin: 20px 0;
+  border-left: 2px solid var(--accent);
+  padding-left: 20px;
+  color: var(--muted);
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  display: block;
+  overflow: auto;
+}
+th,
+td {
+  text-align: left;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+}
+.contract {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 18px 20px;
+  margin: 10px;
+  background: var(--card);
+}
+.contract header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.eyebrow {
+  font:
+    8px 'Roboto Mono',
+    monospace;
+  letter-spacing: 1.1px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.badge {
+  border: 1px solid #d6d6d6;
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  background: #e8e8e8;
+}
+.contract h2 {
+  margin: 8px 0 16px;
+  font-size: 22px;
+}
+.field {
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 10px;
+  font-size: 12px;
+}
+.field span {
+  color: var(--muted);
+}
+.field strong {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.callout {
+  display: flex;
+  gap: 13px;
+  background: var(--card);
+  border-left: 2px solid #999999;
+  padding: 16px 18px;
+  margin: 23px 0;
+  font-size: 13px;
+}
+.callout-mark {
+  font-size: 20px;
+  color: var(--accent);
+}
+.callout p {
+  margin: 5px 0 0;
+}
+.callout strong {
+  font-weight: 500;
+}
+input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #272727;
+    color-scheme: dark;
+    background: #272727;
+    color: #c4c4c4;
+    --line: #3e3e3e;
+    --muted: #a5a5a5;
+    --accent: #b3b3b3;
+    --card: #2d2d2d;
+    --ink: #e2e2e2;
+  }
+  .badge {
+    background: #363636;
+    border-color: #4d4d4d;
+    color: #b7b7b7;
+  }
+}
+@media (max-width: 500px) {
+  main {
+    padding: 28px 23px 40px;
+    font-size: 14px;
+  }
+  h1 {
+    font-size: 32px;
+  }
+  .contract {
+    padding: 16px;
+  }
+  .field {
+    grid-template-columns: 75px 1fr;
+  }
+}
+
+.field input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 7px 9px;
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+}
+.field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.field input::placeholder {
+  color: var(--muted);
+}
+.field {
+  align-items: center;
+}
+
+[hidden] {
+  display: none !important;
+}
+button,
+summary {
+  font: inherit;
+  cursor: pointer;
+}
+.tabs [role='tablist'] {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.tabs [role='tab'] {
+  padding: 8px 14px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+}
+.tabs [aria-selected='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.tabs [role='tabpanel'] {
+  padding: 16px 0;
+}
+.contract-menu {
+  margin: 12px 0;
+}
+.contract-menu summary {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  width: fit-content;
+}
+.contract-menu nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+}
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Contract pages use the component's 10px outer margin without a second gutter. */
+main:has(> .contract) {
+  max-width: none;
+  padding: 0;
+}
