@@ -1,3 +1,4 @@
+import { reference, template } from './template-fixtures';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -13,9 +14,10 @@ test('native wallet encrypts, restores and signs; wrong passwords and tampering 
   assert.equal(wallet.publicKey.startsWith('ed25519:'), true);
   const restored = parseKeystore(JSON.parse(JSON.stringify(wallet)));
   const envelope: Envelope = {
-    version: 1,
+    version: 2,
+    reference,
     id: 'wallet-test',
-    source: '# Test contract',
+    source: template,
     name: 'test',
     parties: [wallet.publicKey],
     signatures: [],

@@ -1,6 +1,12 @@
+import { sourceHash } from './templates';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
-import { canRegister, validAttestations, type Envelope } from './envelope';
+import {
+  canRegister,
+  prepareEnvelope,
+  validAttestations,
+  type Envelope,
+} from './envelope';
 export const kayrosEndpoint = 'https://kayros.provable.dev/api/lightnet/hash';
 export function registrationPayload(envelope: Envelope, dataType: string) {
   if (!canRegister(envelope))
@@ -18,10 +24,11 @@ export function registrationPayload(envelope: Envelope, dataType: string) {
     )!,
   );
   const canonical = JSON.stringify({
-    version: 1,
+    version: 2,
     id: envelope.id,
     name: envelope.name,
-    source: envelope.source,
+    reference: envelope.reference,
+    sourceHash: sourceHash(envelope.source),
     parties: envelope.parties,
     signatures: signatures.map(({ signer, digest, signature }) => ({
       signer: signer.toLowerCase(),
@@ -39,7 +46,10 @@ export async function registerContract(
   dataType: string,
   userKey: string,
 ) {
-  const body = registrationPayload(envelope, dataType);
+  const body = registrationPayload(
+    await prepareEnvelope(envelope, true),
+    dataType,
+  );
   const response = await fetch(kayrosEndpoint, {
     method: 'POST',
     headers: {

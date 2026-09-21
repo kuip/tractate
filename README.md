@@ -68,12 +68,12 @@ Browser tests cover editing, view switching, malformed source recovery, storage 
 
 ## GitHub Pages
 
-The included workflow can be run manually after this directory is initialized as a Git repository and pushed to GitHub. In the repository settings, select **GitHub Actions** as the Pages source. The workflow validates and builds before deployment.
+The editor is published at **https://kuip.github.io/tractate/** from **https://github.com/kuip/tractate**. Pushes to main (or manual workflow dispatch) run validation, verify approved contracts on GitHub, run browser tests, and deploy through GitHub Actions. Pages must use GitHub Actions as its source.
 
 For a project hosted at `/tractate/`:
 
 ```sh
-BASE_PATH=/tractate/ SITE_URL=https://ctzurcanu.github.io npm run build
+BASE_PATH=/tractate/ SITE_URL=https://kuip.github.io npm run build
 BASE_PATH=/tractate/ npm run preview
 ```
 
@@ -119,8 +119,8 @@ Application menus and contract menus use the same shared cascading component and
 
 Choose **View → No Menu** (or press the logo) to open the contract action menu.
 
-- **Send → by Share:** generates a portable link with current MDX values, required public keys, and all existing signatures. Use the browser share sheet where available, copy the link, or download a `.tractate.json` package.
-- **Send → by QR:** encodes the same complete snapshot. If it exceeds QR capacity, use the share link or package; nothing is silently omitted.
+- **Send → by Share:** generates a portable link with a pinned approved GitHub template reference, current field values, required public keys, and all existing signatures. Source code is excluded. Use the browser share sheet where available, copy the link, or download a `.tractate.json` package.
+- **Send → by QR:** encodes the same reference, values, parties, and signatures. If it exceeds QR capacity, use the share link or package; nothing is silently omitted.
 - **Sign:** create or import an encrypted native wallet, exchange `ed25519:` public keys, set the complete required-party list, review the document, and sign with the wallet password. Each party can share the partly signed package with the next signer. Export the encrypted wallet backup; it is separate from a contract package.
 - **Register:** enabled only when every required public key has a verified signature on the exact current source and party list. The dialog displays the endpoint and asks for the Kayros data type and API key. Submit records the hash of the signed package. Keep the package itself to prove what was registered.
 
@@ -129,3 +129,15 @@ Wallet creation/unlocking uses WebCrypto and requires HTTPS or localhost. HTTP L
 Share links hold compressed packages in the URL fragment. Anyone with the link can read the package; the receiving app imports it into a separate local draft. Values and signatures survive reload. No backend stores readable contracts automatically. Clipboard and native share APIs depend on browser support; download and manual copy remain available.
 
 Set `PUBLIC_KAYROS_DATA_TYPE` from `.env.example` if needed. The suggested `tractate_v1` must be provisioned server-side for a 32-byte item width before real registration. API keys are entered at runtime, held only in the registration dialog, and excluded from files and links. The live service’s health, status, and CORS were checked; live hash submission was not performed.
+
+## Approved GitHub contracts
+
+Shared links, QR codes, and downloaded contract packages use format version 2. They contain a short immutable reference such as `712db09b57b9ef82a15c41b042e422462d5492f5/contracts/agreements/contribution.mdx`, plus field values, instance metadata, parties, and signatures. The receiver prefixes the reference with `https://raw.githubusercontent.com/kuip/tractate/`, downloads the MDX, and verifies its SHA-256 before applying values. Embedded source, branch names, foreign repositories, and unapproved revisions are rejected.
+
+The repository-controlled `contracts/approved.json` lists approved references and hashes. Both initial sample contracts are approved. To approve a new or changed contract:
+
+1. Commit and push its `contracts/<type>/<name>.mdx` file to GitHub.
+2. Add its full 40-character commit SHA, file path, and file SHA-256 to `contracts/approved.json` in a subsequent commit.
+3. Run `npm run verify:contracts`, then push the approval. Pages rebuilds with the updated list.
+
+Editing output fields preserves template approval. Source structure changes remain editable/exportable locally, but cannot be sent or signed until the new revision is published and approved. Sending, signing, and registering recheck GitHub availability. Receiving a new package needs GitHub access; existing local drafts remain editable offline. Version 1 packages containing source are no longer accepted, and old signatures must be collected again under the version 2 signing format. Encrypted wallet backups remain compatible.

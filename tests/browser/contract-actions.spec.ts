@@ -1,3 +1,16 @@
+import { readFile } from 'node:fs/promises';
+import { templates, mockTemplates } from '../template-fixtures';
+mockTemplates();
+test.beforeEach(async ({ page }) => {
+  await page.route(
+    'https://raw.githubusercontent.com/kuip/tractate/**',
+    (route) =>
+      route.fulfill({
+        body: templates[route.request().url()],
+        contentType: 'text/plain',
+      }),
+  );
+});
 import { test, expect } from '@playwright/test';
 import { fromShareUrl, canRegister } from '../../src/lib/envelope';
 import { registrationPayload } from '../../src/lib/kayros';
@@ -37,9 +50,7 @@ test('native two-party signing, full sharing, QR, reload, and gated Kayros regis
     page.getByRole('button', { name: 'Register', exact: true }),
   ).toBeDisabled();
   await page.getByRole('button', { name: 'Sign', exact: true }).click();
-  await page
-    .getByLabel('Wallet password', {exact: true})
-    .fill(password);
+  await page.getByLabel('Wallet password', { exact: true }).fill(password);
   await page
     .getByRole('button', { name: 'Create native wallet', exact: true })
     .click();
@@ -49,9 +60,7 @@ test('native two-party signing, full sharing, QR, reload, and gated Kayros regis
   const firstKey = await page
     .getByRole('textbox', { name: 'My public key' })
     .inputValue();
-  await page
-    .getByLabel('Wallet password', {exact: true})
-    .fill(password);
+  await page.getByLabel('Wallet password', { exact: true }).fill(password);
   await page
     .getByRole('button', { name: 'Create native wallet', exact: true })
     .click();
@@ -68,9 +77,7 @@ test('native two-party signing, full sharing, QR, reload, and gated Kayros regis
   await page
     .getByRole('combobox', { name: 'Native wallet' })
     .selectOption(firstKey);
-  await page
-    .getByLabel('Wallet password', {exact: true})
-    .fill(password);
+  await page.getByLabel('Wallet password', { exact: true }).fill(password);
   await page
     .getByRole('button', { name: 'Sign with native wallet', exact: true })
     .click();
@@ -94,6 +101,18 @@ test('native two-party signing, full sharing, QR, reload, and gated Kayros regis
   const shared = await fromShareUrl(new URL(sharedUrl).hash);
   expect(shared.source).toContain('value="Alice and Bob"');
   expect(shared.signatures).toHaveLength(1);
+  const downloaded = page.waitForEvent('download');
+  await page
+    .getByRole('button', { name: 'Download contract package', exact: true })
+    .click();
+  const packageFile = await downloaded;
+  const wire = JSON.parse(await readFile((await packageFile.path())!, 'utf8'));
+  expect(wire).not.toHaveProperty('source');
+  expect(wire.reference).toMatch(
+    /^[a-f0-9]{40}\/contracts\/agreements\/contribution.mdx$/,
+  );
+  expect(wire.values['0']).toBe('Alice and Bob');
+  expect(wire.signatures).toHaveLength(1);
   expect(JSON.stringify(shared)).not.toContain(password);
   await page.getByRole('button', { name: 'Close contract action' }).click();
   await page.goto(sharedUrl);
@@ -109,9 +128,7 @@ test('native two-party signing, full sharing, QR, reload, and gated Kayros regis
   await page
     .getByRole('combobox', { name: 'Native wallet' })
     .selectOption(secondKey);
-  await page
-    .getByLabel('Wallet password', {exact: true})
-    .fill(password);
+  await page.getByLabel('Wallet password', { exact: true }).fill(password);
   await page
     .getByRole('button', { name: 'Sign with native wallet', exact: true })
     .click();

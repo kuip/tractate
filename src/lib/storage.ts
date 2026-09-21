@@ -6,7 +6,7 @@ export interface Draft {
   source: string;
   name: string;
   updated: number;
-  contract?: Pick<Envelope, 'id' | 'parties' | 'signatures'>;
+  contract?: Pick<Envelope, 'id' | 'parties' | 'signatures' | 'reference'>;
 }
 const db = () =>
   openDB('tractate', 1, {

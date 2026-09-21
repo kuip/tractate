@@ -1,3 +1,10 @@
+import {
+  approvedReference,
+  bindTemplate,
+  loadTemplate,
+  populateTemplate,
+  sourceHash,
+} from './templates';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
@@ -5,7 +12,8 @@ import { MAX_SOURCE_LENGTH } from './example';
 
 export type Attestation = { signer: string; digest: string; signature: string };
 export type Envelope = {
-  version: 1;
+  version: 2;
+  reference?: string;
   id: string;
   name: string;
   source: string;
@@ -13,7 +21,7 @@ export type Envelope = {
   signatures: Attestation[];
 };
 // A Tractate-native signing format for Kayros, independent of any other chain.
-export const signingDomain = 'tractate:kayros:contract-consent:v1';
+export const signingDomain = 'tractate:kayros:contract-consent:v2';
 export function signingBytes(envelope: Envelope) {
   return new TextEncoder().encode(
     JSON.stringify({
@@ -21,7 +29,8 @@ export function signingBytes(envelope: Envelope) {
       version: envelope.version,
       id: envelope.id,
       name: envelope.name,
-      source: envelope.source,
+      reference: envelope.reference || '',
+      sourceHash: sourceHash(envelope.source),
       parties: envelope.parties,
     }),
   );
@@ -36,6 +45,9 @@ export function signEnvelope(
   envelope: Envelope,
   secret: Uint8Array,
 ): Attestation {
+  if (!envelope.reference)
+    throw new Error('Select an approved GitHub contract before signing.');
+  approvedReference(envelope.reference);
   const signer = nativeParty(secret);
   if (!envelope.parties.includes(signer))
     throw new Error('This wallet is not a required party.');
@@ -46,6 +58,12 @@ export function signEnvelope(
   };
 }
 export function validAttestations(envelope: Envelope): Attestation[] {
+  if (!envelope.reference) return [];
+  try {
+    approvedReference(envelope.reference);
+  } catch {
+    return [];
+  }
   const hash = digest(envelope);
   const payload = signingBytes(envelope);
   const seen = new Set<string>();
@@ -99,7 +117,7 @@ export function parseEnvelope(value: unknown): Envelope {
   const e = value as Envelope;
   if (
     !e ||
-    e.version !== 1 ||
+    e.version !== 2 ||
     typeof e.id !== 'string' ||
     e.id.length > 128 ||
     !e.id ||
@@ -112,6 +130,7 @@ export function parseEnvelope(value: unknown): Envelope {
     e.signatures.length > 100
   )
     throw new Error('Invalid contract package.');
+  if (e.reference !== undefined) approvedReference(e.reference);
   if (e.parties.some((party) => typeof party !== 'string'))
     throw new Error('Invalid party list.');
   const parties = parseParties(e.parties.join('\n'));
@@ -130,7 +149,8 @@ export function parseEnvelope(value: unknown): Envelope {
       throw new Error('Invalid signature record.');
   }
   return {
-    version: 1,
+    version: 2,
+    reference: e.reference,
     id: e.id,
     name: e.name,
     source: e.source,
@@ -142,8 +162,63 @@ export function parseEnvelope(value: unknown): Envelope {
     })),
   };
 }
+export async function prepareEnvelope(envelope: Envelope, fresh = false) {
+  const binding = await bindTemplate(
+    envelope.source,
+    envelope.reference,
+    fresh,
+  );
+  return { ...envelope, reference: binding.reference };
+}
+export async function portableEnvelope(envelope: Envelope, fresh = false) {
+  const { reference, values } = await bindTemplate(
+    envelope.source,
+    envelope.reference,
+    fresh,
+  );
+  return {
+    version: 2 as const,
+    reference,
+    values,
+    id: envelope.id,
+    name: envelope.name,
+    parties: envelope.parties,
+    signatures: envelope.signatures,
+  };
+}
+export async function hydrateEnvelope(value: unknown): Promise<Envelope> {
+  const wire = value as Record<string, unknown>;
+  if (
+    !wire ||
+    wire.version !== 2 ||
+    'source' in wire ||
+    typeof wire.reference !== 'string' ||
+    !wire.values ||
+    typeof wire.values !== 'object' ||
+    Array.isArray(wire.values)
+  )
+    throw new Error(
+      'Expected a reference-only contract package (version 2). Embedded source is not accepted.',
+    );
+  approvedReference(wire.reference);
+  const values = wire.values as Record<string, string>;
+  if (
+    Object.keys(values).length > 1000 ||
+    Object.entries(values).some(
+      ([key, value]) =>
+        !/^\d+$/.test(key) ||
+        typeof value !== 'string' ||
+        value.length > MAX_SOURCE_LENGTH,
+    )
+  )
+    throw new Error('Invalid contract variables.');
+  const template = await loadTemplate(wire.reference);
+  return parseEnvelope({ ...wire, source: populateTemplate(template, values) });
+}
 export async function shareUrl(envelope: Envelope, origin: string) {
-  const data = new TextEncoder().encode(JSON.stringify(envelope));
+  const data = new TextEncoder().encode(
+    JSON.stringify(await portableEnvelope(envelope, true)),
+  );
   const stream = new Blob([data])
     .stream()
     .pipeThrough(new CompressionStream('gzip'));
@@ -189,5 +264,5 @@ export async function fromShareUrl(hash: string): Promise<Envelope> {
     output.set(chunk, offset);
     offset += chunk.length;
   }
-  return parseEnvelope(JSON.parse(new TextDecoder().decode(output)));
+  return hydrateEnvelope(JSON.parse(new TextDecoder().decode(output)));
 }

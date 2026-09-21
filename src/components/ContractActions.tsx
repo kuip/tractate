@@ -15,13 +15,15 @@ import {
   canRegister,
   digest,
   parseParties,
+  prepareEnvelope,
+  portableEnvelope,
   shareUrl,
   verifiedSigners,
   type Envelope,
 } from '../lib/envelope';
 
 export default function ContractActions({
-  envelope,
+  envelope: draft,
   onChange,
   valid,
 }: {
@@ -32,6 +34,33 @@ export default function ContractActions({
   const [panel, setPanel] = useState<
     'share' | 'qr' | 'sign' | 'register' | null
   >(null);
+  const [binding, setBinding] = useState<{
+    source: string;
+    reference: string;
+  }>();
+  const [bindingError, setBindingError] = useState('');
+  const ready =
+    binding?.source === draft.source &&
+    (!draft.reference || draft.reference === binding.reference);
+  const envelope = ready ? { ...draft, reference: binding!.reference } : draft;
+  useEffect(() => {
+    let disposed = false;
+    setBindingError('');
+    prepareEnvelope(draft)
+      .then((prepared) => {
+        if (!disposed)
+          setBinding({ source: draft.source, reference: prepared.reference! });
+      })
+      .catch((err) => {
+        if (!disposed) {
+          setBinding(undefined);
+          setBindingError(err.message);
+        }
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [draft.source, draft.reference]);
   const [link, setLink] = useState('');
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
@@ -53,7 +82,7 @@ export default function ContractActions({
   const latest = useRef(envelope);
   latest.current = envelope;
   const verified = verifiedSigners(envelope);
-  const complete = valid && canRegister(envelope);
+  const complete = valid && ready && canRegister(envelope);
   useEffect(() => {
     if (!panel) return;
     modal.current?.showModal();
@@ -99,23 +128,31 @@ export default function ContractActions({
       }
     }
   };
-  const download = () => {
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(latest.current, null, 2)], {
-        type: 'application/json',
-      }),
-    );
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${envelope.name.replace(/[^a-z0-9_-]/gi, '-')}.tractate.json`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const download = async () => {
+    try {
+      const portable = await portableEnvelope(latest.current, true);
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(portable, null, 2)], {
+          type: 'application/json',
+        }),
+      );
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${envelope.name.replace(/[^a-z0-9_-]/gi, '-')}.tractate.json`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
   const sign = async () => {
     setBusy(true);
     setError('');
-    const snapshot = latest.current;
     try {
+      const before = digest(latest.current);
+      const snapshot = await prepareEnvelope(latest.current, true);
+      if (digest(latest.current) !== before)
+        throw new Error('The contract changed. Review and sign again.');
       if (!valid || !snapshot.parties.length)
         throw new Error(
           'Set the required parties and fix any source errors before signing.',
@@ -214,8 +251,9 @@ export default function ContractActions({
         {(panel === 'share' || panel === 'qr') && (
           <>
             <p>
-              The complete snapshot includes the source, current field values,
-              parties, and any signatures. Anyone with this link can read it.
+              The package includes an approved GitHub template reference,
+              current field values, parties, and any signatures. Source is
+              fetched from GitHub. Anyone with this link can read the values.
             </p>
             {qr && (
               <img
@@ -274,9 +312,14 @@ export default function ContractActions({
         {panel === 'sign' && (
           <>
             <p>
-              Each required party signs the exact source, field values, and
-              party list with a native Ed25519 key. No other blockchain is
-              involved.
+              Each required party signs the approved template reference,
+              document hash, and party list with a native Ed25519 key. No other
+              blockchain is involved.
+            </p>
+            <p>
+              {ready
+                ? 'Approved template: ' + envelope.reference
+                : bindingError || 'Checking approved GitHub template…'}
             </p>
             <label>
               Required party public keys
@@ -443,6 +486,7 @@ export default function ContractActions({
               disabled={
                 busy ||
                 !valid ||
+                !ready ||
                 !selectedWallet ||
                 !envelope.parties.includes(selectedWallet) ||
                 parties !== envelope.parties.join('\n')

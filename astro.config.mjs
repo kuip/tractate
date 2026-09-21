@@ -5,7 +5,7 @@ export default defineConfig({
   output: 'static',
   build: { inlineStylesheets: 'always' },
   base: process.env.BASE_PATH || '/',
-  site: process.env.SITE_URL || 'https://ctzurcanu.github.io',
+  site: process.env.SITE_URL || 'https://kuip.github.io',
   integrations: [preact()],
   vite: {
     // MDX entity decoding must use its DOM-free worker export.

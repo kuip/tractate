@@ -1,5 +1,7 @@
 name: Publish Tractate
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,6 +22,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - run: npm run verify:contracts
       - run: npm run check
       - run: npm test
       - run: npm run build

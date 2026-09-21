@@ -92,6 +92,7 @@ function restrictedMdx(fields: FieldRange[]) {
           const id = String(fields.length);
           fields.push({
             id,
+            value: value!.value as string,
             from: value!.position!.start.offset,
             to: value!.position!.end.offset,
           });

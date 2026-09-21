@@ -4,7 +4,7 @@
 
 The Astro/Preact app is implemented with Source, Output, and Both views, a recursive first-row application menu, a resizable desktop split, stacked mobile panes, system themes, and bundled fonts. CodeMirror provides source editing; a worker compiles the documented MDX subset, and an isolated iframe renders the output. The app includes a sample contract, new/import/export actions, local draft persistence, error recovery, and a production offline cache. Output fields are editable and synchronize to MDX, autosave, and export. The interface uses the viewport for editing, opens in Both view, and reads contracts from `contracts/<type>/*.mdx`; static assets belong in `public/assets/`. The editor uses neutral grey themes, menu-only commands, and one compact status row. Contract-defined Menu/MenuItem and Tabs/Tab components are implemented, with a demo under `contracts/demos/`.
 
-A manual GitHub Pages workflow and automated compiler/browser checks are included. Deployment has not been performed. Native Ed25519 wallets, signature verification, portable Share/QR packages, and the signature-gated Kayros registration adapter are implemented. Server data-type provisioning, live registration validation, and contract execution remain outstanding. See SIGNING.md for the signing format.
+A GitHub Pages workflow deploys main to https://kuip.github.io/tractate/ after compiler/browser checks and remote template verification. Shared packages contain approved pinned GitHub references, field values, and signatures; they never embed source. contracts/approved.json governs approved revisions. Native Ed25519 wallets, signature verification, portable Share/QR packages, and the signature-gated Kayros registration adapter are implemented. Server data-type provisioning, live registration validation, and contract execution remain outstanding. See SIGNING.md for the signing format.
 
 The milestones below retain their original acceptance criteria. Implemented editor features do not resolve the remaining protocol and contract-model decisions.
 
@@ -140,7 +140,7 @@ tests/
 - [ ] Add focused unit tests for document serialization, menu tree behavior, storage migrations, and Kayros field conversions as those features are implemented.
 - [ ] Add browser checks for all three views, state retention across view switches, contract consumption, editing, error recovery, import/export, draft restoration, offline reload, preview isolation, and mobile navigation.
 - [ ] Check keyboard access, system theme changes, long documents, and deeply nested menus.
-- [ ] Create a GitHub Pages deployment workflow that runs validation and a production build before publishing.
+- [x] Create a GitHub Pages deployment workflow that runs validation and a production build before publishing.
 - [ ] Smoke-test the published project URL, asset paths, refresh behavior, and service-worker scope.
 - [ ] Update the README with setup, supported MDX syntax, deployment steps, offline limitations, and Kayros configuration.
 

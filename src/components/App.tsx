@@ -1,5 +1,10 @@
 import ContractActions from './ContractActions';
-import { fromShareUrl, parseEnvelope, type Envelope } from '../lib/envelope';
+import {
+  fromShareUrl,
+  parseEnvelope,
+  hydrateEnvelope,
+  type Envelope,
+} from '../lib/envelope';
 import { bytesToHex, randomBytes } from '@noble/hashes/utils.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { TargetedEvent, TargetedPointerEvent } from 'preact';
@@ -47,9 +52,9 @@ export default function App() {
   );
   const [ready, setReady] = useState(false);
   const [contract, setContract] = useState<
-    Pick<Envelope, 'id' | 'parties' | 'signatures'>
+    Pick<Envelope, 'id' | 'parties' | 'signatures' | 'reference'>
   >(() => ({ id: bytesToHex(randomBytes(16)), parties: [], signatures: [] }));
-  const envelope: Envelope = { version: 1, ...contract, source, name };
+  const envelope: Envelope = { version: 2, ...contract, source, name };
   const [saveStatus, setSaveStatus] = useState('Opening workspace…');
   const [compileStatus, setCompileStatus] = useState('Preparing output');
   const [error, setError] = useState('');
@@ -89,6 +94,7 @@ export default function App() {
         );
         setContract({
           id: imported.id,
+          reference: imported.reference,
           parties: imported.parties,
           signatures: imported.signatures,
         });
@@ -103,13 +109,14 @@ export default function App() {
         if (draft) {
           if (draft.contract) {
             const restored = parseEnvelope({
-              version: 1,
+              version: 2,
               ...draft.contract,
               name: draft.name,
               source: draft.source,
             });
             setContract({
               id: restored.id,
+              reference: restored.reference,
               parties: restored.parties,
               signatures: restored.signatures,
             });
@@ -385,7 +392,7 @@ export default function App() {
       if (!selected.name.endsWith('.json') && text.length > MAX_SOURCE_LENGTH)
         throw new Error();
       if (selected.name.endsWith('.json')) {
-        const imported = parseEnvelope(JSON.parse(text));
+        const imported = await hydrateEnvelope(JSON.parse(text));
         setDialog({
           title: 'Open contract package?',
           description:
@@ -396,6 +403,7 @@ export default function App() {
             setName(imported.name);
             setContract({
               id: imported.id,
+              reference: imported.reference,
               parties: imported.parties,
               signatures: imported.signatures,
             });
@@ -475,6 +483,7 @@ export default function App() {
               }
               setContract({
                 id: next.id,
+                reference: next.reference,
                 parties: next.parties,
                 signatures: next.signatures,
               });

@@ -1,3 +1,5 @@
+import { reference, template, mockTemplates } from './template-fixtures';
+mockTemplates();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { nativeParty, signEnvelope } from '../src/lib/envelope';
@@ -14,10 +16,11 @@ import { registrationPayload } from '../src/lib/kayros';
 const alice = new Uint8Array(32).fill(17);
 const bob = new Uint8Array(32).fill(34);
 const fresh = (): Envelope => ({
-  version: 1,
+  version: 2,
+  reference,
   id: 'test-contract',
   name: 'agreement',
-  source: '<Field label="Amount" value="42" />',
+  source: template.replace('value=""', 'value="42"'),
   parties: parseParties(`${nativeParty(alice)}\n${nativeParty(bob)}`),
   signatures: [],
 });

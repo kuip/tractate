@@ -8,6 +8,7 @@
     "build": "astro build && node scripts/build-sw.mjs",
     "preview": "astro preview",
     "check": "astro check",
+    "verify:contracts": "node scripts/verify-contracts.mjs",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
     "predev": "node scripts/build-preview.mjs",

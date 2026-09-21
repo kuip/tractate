@@ -2,6 +2,7 @@ export interface FieldRange {
   id: string;
   from: number;
   to: number;
+  value: string;
 }
 export function applyFieldEdit(
   source: string,
@@ -26,7 +27,7 @@ export function applyFieldEdit(
     source: source.slice(0, field.from) + replacement + source.slice(field.to),
     fields: fields.map((item) =>
       item.id === id
-        ? { ...item, to: item.from + replacement.length }
+        ? { ...item, value, to: item.from + replacement.length }
         : item.from >= field.to
           ? { ...item, from: item.from + delta, to: item.to + delta }
           : item,
