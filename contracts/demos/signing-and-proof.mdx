@@ -1,0 +1,20 @@
+import { ContractSign, ContractProof } from '@tractate/contract-kit/mdx';
+
+<Contract title="Signing and proof demo" network="Kayros" status="Draft">
+  <Tabs label="Contract sections">
+    <Tab label="Parties">
+      <Field label="Author" value="" placeholder="Author identity" />
+      <Field label="Recipient" value="" placeholder="Recipient identity" />
+    </Tab>
+    <Tab label="Terms">
+      <Field label="Purpose" value="" placeholder="Agreed contribution" />
+      <Field label="Deadline" value="" placeholder="Agreed date" />
+    </Tab>
+    <Tab label="Signatures">
+      <ContractProof />
+      <ContractSign label="Review all fields and sign" />
+    </Tab>
+  </Tabs>
+</Contract>
+
+Every required party must sign the same version. Changing a field or the required parties requires new signatures. The wallet review includes the fields in every tab.
